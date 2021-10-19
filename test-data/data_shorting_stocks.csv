@@ -1,0 +1,4 @@
+Trades,Header,DataDiscriminator,Asset Category,Currency,Account,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Stocks,USD,U1234567,AMC,"2021-06-03, 06:08:56",-100,73.54,51.34,7354,-1.0494054,-7352.9505946,0,2220,O
+Trades,Data,Order,Stocks,USD,U1234567,AMC,"2021-07-16, 16:20:00",100,40,34.96,-4000,0,7352.950595,3490.900086,-504,A;C
+Trades,SubTotal,,Stocks,USD,AMC,,,0,,,3354,-1.0494054,0.0000004,3490.900086,1716,

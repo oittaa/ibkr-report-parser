@@ -1,0 +1,19 @@
+Trades,Header,DataDiscriminator,Asset Category,Currency,Account,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Stocks,AUD,U987654321,DXS,"2020-02-18, 18:02:25",200,13.29,13.41,-2658,-6,2664,0,24,O
+Trades,SubTotal,,Stocks,AUD,DXS,,,200,,,-2658,-6,2664,0,24,
+Trades,Data,Order,Stocks,AUD,U987654321,SGP,"2020-02-18, 18:09:10",500,5.18,5.19,-2590,-6,2596,0,5,O
+Trades,SubTotal,,Stocks,AUD,SGP,,,500,,,-2590,-6,2596,0,5,
+Trades,Total,,Stocks,AUD,,,,,,,-5248,-12,5260,0,29, 
+Trades,Total,,Stocks,EUR,,,,,,,-3242.4768,-7.4142,3249.891,0,17.91765, 
+Trades,Data,Order,Stocks,CAD,U987654321,ACB,"2020-05-08, 20:25:00",-0.6667,10.92,10.45,7.280364,0,-7.280364,0,0.3133,O
+Trades,Data,Order,Stocks,CAD,U987654321,ACB,"2020-05-08, 20:25:00",0.6667,10.92,9.2,-7.280364,0,7.280364,0,-1.1467,Ca
+Trades,Data,Order,Stocks,CAD,U987654321,ACB,"2020-05-08, 20:25:00",-0.6667,10.45,9.2,6.967015,0,-17.346241,-10.379226,0.8334,C
+Trades,SubTotal,,Stocks,CAD,ACB,,,-0.6667,,,6.967015,0,-17.346241,-10.379226,0,
+Trades,Data,Order,Stocks,USD,U123456789,WORK,"2020-11-25, 17:11:18",-40,40.35,40.7,1614,-1.0404294,-1281,331.959571,-14,C
+Trades,SubTotal,,Stocks,USD,WORK,,,0,,,334,-2.0404294,0,331.959571,8.4,
+Trades,Data,Order,Stocks,USD,U987654321,XOM,"2020-02-18, 11:22:41",-50,59.565,59.88,2978.25,-1.071769325,-3462.5,-485.321769,-15.75,C
+Trades,SubTotal,,Stocks,USD,XOM,,,-50,,,2978.25,-1.071769325,-3462.5,-485.321769,-15.75,
+Trades,Header,DataDiscriminator,Asset Category,Currency,Account,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Equity and Index Options,USD,U987654321,AAPL 25SEP20 102.5 P,"2020-09-18, 11:58:39",-1,1.15,1.465,115,-0.7883415,-114.2116585,0,-31.5,O
+Trades,Data,Order,Equity and Index Options,USD,U987654321,AAPL 25SEP20 102.5 P,"2020-09-23, 10:18:01",1,0.18,0.53,-18,-0.7838,114.211658,95.427858,35,C
+Trades,SubTotal,,Equity and Index Options,USD,AAPL 25SEP20 102.5 P,,,0,,,97,-1.5721415,-0.0000005,95.427858,3.5,

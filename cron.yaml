@@ -1,0 +1,4 @@
+cron:
+- description: "Cron function that fetches the latest exchange rates if necessary."
+  url: /cron
+  schedule: every 6 hours

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title }}</title>
+</head>
+<body>
+<div>
+  <h1>{{ title }}</h1>
+  <p><a href="https://github.com/oittaa/ibkr-report-parser">Source code at GitHub</a></p>
+  <h2>1. Download a CSV report from Interactive Brokers.</h2>
+  <p>It can be found under "Reports -> Statements".</p>
+  <img src="static/images/reports_statements.png" alt="Format: CSV">
+  <h2>2. Upload the CSV file.</h2>
+  <form method="post" enctype="multipart/form-data">
+    <input type="file" name="file">
+    <input type="submit" value="Upload">
+  </form>
+</div>
+<div>{% block result %}{% endblock %}</div>
+</body>
+</html>

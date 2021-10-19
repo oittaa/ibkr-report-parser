@@ -1,0 +1,2 @@
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Realized P/L %,MTM P/L,Code
+Trades,Data,Order,Stocks,CAD,ACB.UNT,"2118-08-22, 20:25:00",-0.7059,0.23,0.23,0.162357,0,-0.043838,0.118519,270.356768101,0,C
