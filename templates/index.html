@@ -8,9 +8,14 @@
 <div>
   <h1>{{ title }}</h1>
   <p><a href="https://github.com/oittaa/ibkr-report-parser">Source code at GitHub</a></p>
-  <h2>1. Download a CSV report from Interactive Brokers.</h2>
-  <p>It can be found under "Reports -> Statements".</p>
-  <img src="static/images/reports_statements.png" alt="Format: CSV">
+  <h2>1. Download a CSV trades report from Interactive Brokers.</h2>
+  <p>Go "Reports" -> "Statements".</p>
+  <p>Create new "Custom Statement".</p>
+  <p>From "Sections" select "Trades".</p>
+  <p>From "Section Configurations" make sure "Hide Details for Positions, Trades and Client Fees Sections?" is set to "No".</p>
+  <img src="static/images/custom_statement.png" alt="Sections: Trades">
+  <p>After saving the statement, run it with CSV output.</p>
+  <img src="static/images/run_statement.png" alt="Format: CSV">
   <h2>2. Upload the CSV file.</h2>
   <form method="post" enctype="multipart/form-data">
     <input type="file" name="file">

@@ -6,6 +6,6 @@
   <table>
     <tr><td>Total selling prices (Luovutushinnat yhteensä):</td><td>{{ "%.2f"|format(prices|round(2)) }}</td></tr>
     <tr><td>Total capital gains (Luovutusvoitot yhteensä):</td><td>{{ "%.2f"|format(gains|round(2)) }}</td></tr>
-    <tr><td>Total capital losses (Luovutustappiot yhteensä):</td><td>{{ "%.2f"|format(losses|abs|round(2)) }}</td></tr>
+    <tr><td>Total capital losses (Luovutustappiot yhteensä):</td><td>{{ "%.2f"|format(losses|round(2)) }}</td></tr>
   </table>
 {% endblock %}

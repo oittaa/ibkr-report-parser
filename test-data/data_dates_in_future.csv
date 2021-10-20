@@ -1,2 +1,5 @@
-Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Realized P/L %,MTM P/L,Code
-Trades,Data,Order,Stocks,CAD,ACB.UNT,"2118-08-22, 20:25:00",-0.7059,0.23,0.23,0.162357,0,-0.043838,0.118519,270.356768101,0,C
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code
+Trades,Data,Order,Stocks,USD,UPST,"2121-08-23, 09:33:11",-,-50,199.64,9982,-1.0568582,-3043,6937.943142,C
+Trades,Data,Trade,Stocks,USD,UPST,"2121-08-23, 09:33:11",IBKRATS,-50,199.64,9982,-1.0568582,-3043,6937.943142,C
+Trades,Data,ClosedLot,Stocks,USD,UPST,2121-03-15,,50,60.86,,,3043,6937.943142,ST
+Trades,SubTotal,,Stocks,USD,UPST,,,-50,,9982,-1.0568582,-3043,6937.943142,

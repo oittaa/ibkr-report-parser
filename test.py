@@ -40,18 +40,18 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers.get("Content-Type"), "application/json")
         data_json = json.loads(response.data)
-        self.assertEqual(data_json["prices"], 15525.69)
-        self.assertEqual(data_json["gains"], 0.08)
-        self.assertEqual(data_json["losses"], 1324.88)
+        self.assertEqual(data_json["prices"], 8518.52)
+        self.assertEqual(data_json["gains"], 5964.76)
+        self.assertEqual(data_json["losses"], 0)
 
     def test_post_multi_account_json(self):
         data = {"file": open("test-data/data_multi_account.csv", "rb")}
         response = self.app.post("/?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
-        self.assertEqual(data_json["prices"], 4217.61)
-        self.assertEqual(data_json["gains"], 360.81)
-        self.assertEqual(data_json["losses"], 455.57)
+        self.assertEqual(data_json["prices"], 6873.02)
+        self.assertEqual(data_json["gains"], 1064.02)
+        self.assertEqual(data_json["losses"], 445.98)
 
     def test_post_data_in_future(self):
         data = {"file": open("test-data/data_dates_in_future.csv", "rb")}
@@ -64,7 +64,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
         self.assertEqual(data_json["prices"], 6034.30)
-        self.assertEqual(data_json["gains"], 2957.89)
+        self.assertEqual(data_json["gains"], 2644.18)
         self.assertEqual(data_json["losses"], 0.00)
 
 
