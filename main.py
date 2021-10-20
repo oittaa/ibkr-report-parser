@@ -171,9 +171,9 @@ def main_post():
     return render_template(
         "result.html",
         title=TITLE,
-        prices=round(prices, 2),
-        gains=round(gains, 2),
-        losses=round(abs(losses), 2),
+        prices=prices,
+        gains=gains,
+        losses=losses,
     )
 
 
