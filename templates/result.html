@@ -3,7 +3,9 @@
   <h2>3. Fill out the forms at <a href ="https://omavero.vero.fi/">MyTax (OmaVero)</a></h2>
   <h3>"Profit from selling securities (Arvopaperien myyntivoitot)"</h3>
   <p>From "Filing method (Ilmoittamistapa)" choose "I am giving the details on securities in an attachment file (Ilmoitan arvopaperien tiedot liitetiedostossa)" and fill out the following fields.
-  <p>Total selling prices (Luovutushinnat yhteensä): {{ prices }}</p>
-  <p>Total capital gains (Luovutusvoitot yhteensä): {{ gains }}</p>
-  <p>Total capital losses (Luovutustappiot yhteensä): {{ losses }}</p>
+  <table>
+    <tr><td>Total selling prices (Luovutushinnat yhteensä):</td><td>{{ "%.2f"|format(prices|round(2)) }}</td></tr>
+    <tr><td>Total capital gains (Luovutusvoitot yhteensä):</td><td>{{ "%.2f"|format(gains|round(2)) }}</td></tr>
+    <tr><td>Total capital losses (Luovutustappiot yhteensä):</td><td>{{ "%.2f"|format(losses|abs|round(2)) }}</td></tr>
+  </table>
 {% endblock %}
