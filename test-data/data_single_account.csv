@@ -1,18 +1,5 @@
-Forex Balances,Header,Asset Category,Currency,Description,Quantity,Cost Price,Cost Basis in EUR,Close Price,Value in EUR,Unrealized P/L in EUR,Code
-Forex Balances,Data,Forex,EUR,AUD,352.29,0.623876832,-219.785569,0.61498,216.651304,-3.134265,
-Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Realized P/L %,MTM P/L,Code
-Trades,Data,Order,Stocks,CAD,ACB.UNT,"2018-08-22, 20:25:00",-0.7059,0.23,0.23,0.162357,0,-0.043838,0.118519,270.356768101,0,C
-Trades,SubTotal,,Stocks,CAD,ACB.UNT,,-0.7059,,,0.162357,0,-0.043838,0.118519,270.36,0,
-Trades,Data,Order,Stocks,EUR,ABIb,"2018-01-26, 06:56:28",25,92.27,92.55,-2306.75,-4,2310.75,0,0,7,O
-Trades,SubTotal,,Stocks,EUR,ABIb,,25,,,-2306.75,-4,2310.75,0,0.00,7,
-Trades,Data,Order,Stocks,USD,T,"2018-07-05, 11:06:42",35,32.549,32.6,-1139.215,-1,1140.215,0,0,1.785,O
-Trades,SubTotal,,Stocks,USD,T,,310,,,-10855.187,-5,10860.187,0,0.00,-28.387,
-Trades,Data,Order,Stocks,USD,VCLT,"2018-01-23, 14:03:40",55,94.4165,94.45,-5192.9075,-1,5193.9075,0,0,1.8425,O
-Trades,Data,Order,Stocks,USD,VCLT,"2018-12-20, 13:14:22",-110,85.29,85.35,9381.9,-1.1350547,-10210.9075,-830.142554,-8.129958615,-6.6,C
-Trades,SubTotal,,Stocks,USD,VCLT,,-55,,,4188.9925,-2.1350547,-5017,-830.142554,-8.13,-4.7575,
-Trades,Data,Order,Stocks,USD,VDC,"2018-12-20, 13:08:20",-30,131.2493,130.99,3937.479,-1.054757227,-4369,-432.575757,-9.901024422,7.779,C
-Trades,SubTotal,,Stocks,USD,VDC,,-30,,,3937.479,-1.054757227,-4369,-432.575757,-9.90,7.779,
-Trades,Data,Order,Stocks,USD,VER,"2018-01-23, 13:36:02",700,7.395,7.39,-5176.5,-3.5,5180,0,0,-3.5,O;P
-Trades,Data,Order,Stocks,USD,VER,"2018-12-20, 13:33:14",-600,7.4316,7.38,4458.96,-3.12936648,-4710.227222,-254.396588,-5.400940889,30.96,C
-Trades,Data,Order,Stocks,USD,VER,"2018-12-21, 10:10:52",700,7.4584,7.31,-5220.88,-3.5,5224.38,0,0,-103.88,O
-Trades,SubTotal,,Stocks,USD,VER,,800,,,-5938.42,-10.12936648,5694.152778,-254.396588,-5.40,-76.42,
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code
+Trades,Data,Order,Stocks,USD,UPST,"2021-08-23, 09:33:11",-,-50,199.64,9982,-1.0568582,-3043,6937.943142,C
+Trades,Data,Trade,Stocks,USD,UPST,"2021-08-23, 09:33:11",IBKRATS,-50,199.64,9982,-1.0568582,-3043,6937.943142,C
+Trades,Data,ClosedLot,Stocks,USD,UPST,2021-03-15,,50,60.86,,,3043,6937.943142,ST
+Trades,SubTotal,,Stocks,USD,UPST,,,-50,,9982,-1.0568582,-3043,6937.943142,
