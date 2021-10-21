@@ -1,0 +1,3 @@
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code
+Trades,Data,ClosedLot,Stocks,USD,UPST,2021-03-15,,50,60.86,,,3043,6937.943142,ST
+Trades,SubTotal,,Stocks,USD,UPST,,,-50,,9982,-1.0568582,-3043,6937.943142,
