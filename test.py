@@ -76,6 +76,11 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["gains"], 5988.57)
         self.assertEqual(data_json["losses"], 0.00)
 
+    def test_post_closedlot_without_trade(self):
+        data = {"file": open("test-data/data_closedlot_without_trade.csv", "rb")}
+        response = self.app.post("/", data=data)
+        self.assertEqual(response.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()
