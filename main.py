@@ -12,6 +12,10 @@ import urllib.request
 import zlib
 
 
+TITLE = os.getenv("TITLE", "IBKR Report Parser")
+BUCKET_ID = os.getenv("BUCKET_ID", None)
+DEBUG = bool(os.getenv("DEBUG"))
+
 EXCHANGE_RATES_URL = (
     "https://www.suomenpankki.fi/WebForms/ReportViewerPage.aspx?report=/tilastot/valuuttakurssit/"
     "valuuttakurssit_short_xml_fi&output=csv"
@@ -26,9 +30,6 @@ DATA_STR_MULTI_ACCOUNT = (
 )
 MAXIMUM_BACKTRACK_DAYS = 7
 RATES_FILE = "exchange_rates-{0}.json.gz"
-
-TITLE = os.getenv("TITLE", "IBKR Report Parser")
-BUCKET_ID = os.getenv("BUCKET_ID", None)
 
 app = Flask(__name__)
 cache = {}
@@ -53,6 +54,18 @@ def add_years(d, years):
         return d.replace(year=d.year + years)
     except ValueError:
         return d + (date(d.year + years, 1, 1) - date(d.year, 1, 1))
+
+
+def date_without_time(date_str):
+    return re.sub(r'([0-9-]+) ([0-9:]+)', r"\1", date_str)
+
+
+def remove_extra_commas(line):
+    # remove comma from datetime
+    line = re.sub(r'"([0-9-]+), ([0-9:]+)"', r"\1 \2", line)
+    # remove commas from numbers like "-1,000"
+    line = re.sub(r'(?!(([^"]*"){2})*[^"]*$),', "", line)
+    return re.sub(r'"([0-9-.]+)"', r"\1", line)
 
 
 def download_official_rates(url):
@@ -211,6 +224,15 @@ def parse_closed_lot(trade_data, items, offset, cache_key):
         realized,
         deemed_profit,
     )
+    app.logger.info(
+        "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, Selling price: %.2f, Gains/Losses: %.2f",
+        trade_data["symbol"],
+        abs(lot_quantity),
+        date_without_time(trade_data["buy_date"]),
+        date_without_time(trade_data["sell_date"]),
+        total_sell_price,
+        min(realized, deemed_profit),
+    )
     return min(realized, deemed_profit), lot_quantity
 
 
@@ -227,6 +249,22 @@ def calculate_deemed_acquisition_cost(buy_date, sell_date, total_sell_price):
     return coefficient * total_sell_price
 
 
+def show_results(prices, gains, losses):
+    if request.args.get("json") is not None:
+        return {
+            "prices": round(prices, 2),
+            "gains": round(gains, 2),
+            "losses": round(losses, 2),
+        }
+    return render_template(
+        "result.html",
+        title=TITLE,
+        prices=prices,
+        gains=gains,
+        losses=losses,
+    )
+
+
 @app.route("/", methods=["GET"])
 def main_get():
     return render_template("index.html", title=TITLE)
@@ -234,6 +272,9 @@ def main_get():
 
 @app.route("/", methods=["POST"])
 def main_post():
+    app.logger.setLevel(logging.INFO)
+    if app.debug:
+        app.logger.setLevel(logging.DEBUG)
     prices, gains, losses = 0, 0, 0
     offset = 0
     trade_data = {}
@@ -250,11 +291,7 @@ def main_post():
         elif line == DATA_STR_MULTI_ACCOUNT:
             offset = 1
             continue
-        # remove comma from datetime
-        line = re.sub(r'"([0-9-]+), ([0-9:]+)"', r"\1 \2", line)
-        # remove comma from numbers like "-1,000"
-        line = re.sub(r'(?!(([^"]*"){2})*[^"]*$),', "", line)
-        line = re.sub(r'"([0-9-.]+)"', r"\1", line)
+        line = remove_extra_commas(line)
         items = line.split(",")
         if (
             len(items) == 15 + offset
@@ -284,20 +321,7 @@ def main_post():
                 app.logger.debug("Trade completed.")
                 trade_data = {}
 
-    if request.args.get("json") is not None:
-        return {
-            "prices": round(prices, 2),
-            "gains": round(gains, 2),
-            "losses": round(losses, 2),
-        }
-
-    return render_template(
-        "result.html",
-        title=TITLE,
-        prices=prices,
-        gains=gains,
-        losses=losses,
-    )
+    return show_results(prices, gains, losses)
 
 
 @app.route("/cron", methods=["GET"])
@@ -314,5 +338,4 @@ if __name__ == "__main__":
     # This is used when running locally only. When deploying to Google App
     # Engine, a webserver process such as Gunicorn will serve the app. This
     # can be configured by adding an `entrypoint` to app.yaml.
-    app.run(host="127.0.0.1", port=8080, debug=True)
-    app.logger.setLevel(logging.DEBUG)
+    app.run(host="127.0.0.1", port=8080, debug=DEBUG)

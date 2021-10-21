@@ -81,6 +81,15 @@ class SmokeTests(unittest.TestCase):
         response = self.app.post("/", data=data)
         self.assertEqual(response.status_code, 400)
 
+    def test_post_numbers_within_quotes(self):
+        data = {"file": open("test-data/data_numbers_within_quotes.csv", "rb")}
+        response = self.app.post("/?json", data=data)
+        self.assertEqual(response.status_code, 200)
+        data_json = json.loads(response.data)
+        self.assertEqual(data_json["prices"], 7195.37)
+        self.assertEqual(data_json["gains"], 455.67)
+        self.assertEqual(data_json["losses"], 0.00)
+
 
 if __name__ == "__main__":
     unittest.main()
