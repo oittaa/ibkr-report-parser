@@ -15,11 +15,12 @@ import zlib
 TITLE = os.getenv("TITLE", "IBKR Report Parser")
 BUCKET_ID = os.getenv("BUCKET_ID", None)
 DEBUG = bool(os.getenv("DEBUG"))
-
-EXCHANGE_RATES_URL = (
+EXCHANGE_RATES_URL_DEFAULT = (
     "https://www.suomenpankki.fi/WebForms/ReportViewerPage.aspx?report=/tilastot/valuuttakurssit/"
     "valuuttakurssit_short_xml_fi&output=csv"
 )
+EXCHANGE_RATES_URL = os.getenv("EXCHANGE_RATES_URL", EXCHANGE_RATES_URL_DEFAULT)
+
 DATA_STR_SINGLE_ACCOUNT = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,"
     "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
@@ -87,14 +88,14 @@ def download_official_rates(url):
     app.logger.info("Successfully downloaded the latest exchange rates.")
     for line in response:
         m = re.match(
-            r'.*,(\d\d\d\d-\d\d-\d\d),EUR-([A-Z]+),"([\d]+),([\d]+)"',
+            r'.*,(\d\d\d\d-\d\d-\d\d),EUR-([A-Z]+),"([\d\s]+),([\d]+)"',
             line.decode("utf-8"),
         )
         if m:
             # example: rates['MXN-2014-01-02'] = 17.9384
-            rates["{0}-{1}".format(m.group(2), m.group(1))] = float(
-                "{0}.{1}".format(m.group(3), m.group(4))
-            )
+            n = re.sub(r"[\s]+", r"", m.group(3))
+            rate = float("{0}.{1}".format(n, m.group(4)))
+            rates["{0}-{1}".format(m.group(2), m.group(1))] = rate
     app.logger.info("Parsed exchange rates from the retrieved data.")
     return rates
 
@@ -289,29 +290,28 @@ def main_post():
         offset = check_offset(line, offset)
         line = remove_extra_commas(line)
         items = line.split(",")
-        if (
+        if not (
             len(items) == 15 + offset
             and "Trades" == items[0]
             and "Data" == items[1]
             and items[2] in ("Trade", "ClosedLot")
             and items[3] in ("Stocks", "Equity and Index Options")
         ):
-            rate = eur_exchange_rate(items[4], items[6 + offset], cache_key)
-            if "Trade" == items[2]:
-                trade_data = parse_trade(items, offset, rate)
-                prices += trade_data["total_selling_price"]
-            elif "ClosedLot" == items[2]:
-                realized, lot_quantity = parse_closed_lot(
-                    trade_data, items, offset, rate
-                )
-                if realized > 0:
-                    gains += realized
-                else:
-                    losses -= realized
-                trade_data["quantity"] += lot_quantity
-                if 0 == trade_data["quantity"]:
-                    app.logger.debug("Trade completed.")
-                    trade_data = {}
+            continue
+        rate = eur_exchange_rate(items[4], items[6 + offset], cache_key)
+        if "Trade" == items[2]:
+            trade_data = parse_trade(items, offset, rate)
+            prices += trade_data["total_selling_price"]
+        elif "ClosedLot" == items[2]:
+            realized, lot_quantity = parse_closed_lot(trade_data, items, offset, rate)
+            if realized > 0:
+                gains += realized
+            else:
+                losses -= realized
+            trade_data["quantity"] += lot_quantity
+            if 0 == trade_data["quantity"]:
+                app.logger.debug("Trade completed.")
+                trade_data = {}
 
     return show_results(prices, gains, losses)
 
