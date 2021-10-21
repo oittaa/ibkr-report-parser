@@ -121,6 +121,8 @@ def get_exchange_rates(url, cron_job=False):
 
 
 def eur_exchange_rate(currency, date_str, cache_key):
+    if currency == "EUR":
+        return 1
     original_date = date = get_date(date_str)
     while original_date - date < timedelta(MAXIMUM_BACKTRACK_DAYS):
         rate = cache[cache_key].get("{}-{}".format(currency, date.strftime("%Y-%m-%d")))
@@ -136,12 +138,8 @@ def eur_exchange_rate(currency, date_str, cache_key):
     abort(400)
 
 
-def parse_trade(items, offset, cache_key):
+def parse_trade(items, offset, rate):
     trade_data = {"total_selling_price": 0, "fee_per_share": 0}
-    if items[4] == "EUR":
-        rate = 1
-    else:
-        rate = eur_exchange_rate(items[4], items[6 + offset], cache_key)
     trade_data["symbol"] = items[5 + offset]
     # Sold stocks have a negative value in the "Quantity" column, items[8 + offset]
     trade_data["quantity"] = float(items[8 + offset])
@@ -169,7 +167,7 @@ def parse_trade(items, offset, cache_key):
     return trade_data
 
 
-def parse_closed_lot(trade_data, items, offset, cache_key):
+def parse_closed_lot(trade_data, items, offset, rate):
     if trade_data.get("symbol") != items[5 + offset]:
         app.logger.error(
             "Symbol mismatch! Trade: %s, ClosedLot: %s",
@@ -182,10 +180,6 @@ def parse_closed_lot(trade_data, items, offset, cache_key):
     multiplier = 1
     if items[3] == "Equity and Index Options":
         multiplier = 100
-    if items[4] == "EUR":
-        rate = 1
-    else:
-        rate = eur_exchange_rate(items[4], items[6 + offset], cache_key)
     lot_quantity = float(items[8 + offset])
     if lot_quantity < 0:
         trade_data["sell_date"] = items[6 + offset]
@@ -300,7 +294,8 @@ def main_post():
             and items[2] == "Trade"
             and (items[3] == "Stocks" or items[3] == "Equity and Index Options")
         ):
-            trade_data = parse_trade(items, offset, cache_key)
+            rate = eur_exchange_rate(items[4], items[6 + offset], cache_key)
+            trade_data = parse_trade(items, offset, rate)
             prices += trade_data["total_selling_price"]
         elif (
             len(items) == 15 + offset
@@ -309,9 +304,8 @@ def main_post():
             and items[2] == "ClosedLot"
             and (items[3] == "Stocks" or items[3] == "Equity and Index Options")
         ):
-            realized, lot_quantity = parse_closed_lot(
-                trade_data, items, offset, cache_key
-            )
+            rate = eur_exchange_rate(items[4], items[6 + offset], cache_key)
+            realized, lot_quantity = parse_closed_lot(trade_data, items, offset, rate)
             if realized > 0:
                 gains += realized
             else:
