@@ -186,6 +186,7 @@ def parse_closed_lot(trade_data, items, offset, cache_key):
         app.logger.error(
             "Invalid data, missing one or more of the following: 'sell_date','sell_price','buy_date','buy_price'"
         )
+        app.logger.debug(trade_data)
         abort(400)
     realized = (
         trade_data["sell_price"] * multiplier
