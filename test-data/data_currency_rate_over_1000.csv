@@ -1,0 +1,5 @@
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code
+Trades,Data,Order,Stocks,KRW,KEKW,"2021-09-17, 09:33:11",-,-50,199.64,9982,-1.0568582,-3043,6937.943142,C
+Trades,Data,Trade,Stocks,KRW,KEKW,"2021-09-17, 09:33:11",IBKRATS,-50,199.64,9982,-1.0568582,-3043,6937.943142,C
+Trades,Data,ClosedLot,Stocks,KRW,KEKW,2021-09-16,,50,60.86,,,3043,6937.943142,ST
+Trades,SubTotal,,Stocks,KRW,KEKW,,,-50,,9982,-1.0568582,-3043,6937.943142,
