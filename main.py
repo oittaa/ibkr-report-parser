@@ -57,7 +57,7 @@ def add_years(d, years):
 
 
 def date_without_time(date_str):
-    return re.sub(r'([0-9-]+) ([0-9:]+)', r"\1", date_str)
+    return re.sub(r"([0-9-]+) ([0-9:]+)", r"\1", date_str)
 
 
 def remove_extra_commas(line):
