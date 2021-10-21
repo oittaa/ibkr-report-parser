@@ -121,7 +121,7 @@ def get_exchange_rates(url, cron_job=False):
 
 
 def eur_exchange_rate(currency, date_str, cache_key):
-    if currency == "EUR":
+    if "EUR" == currency:
         return 1
     original_date = date = get_date(date_str)
     while original_date - date < timedelta(MAXIMUM_BACKTRACK_DAYS):
@@ -178,7 +178,7 @@ def parse_closed_lot(trade_data, items, offset, rate):
         app.logger.debug(items)
         abort(400)
     multiplier = 1
-    if items[3] == "Equity and Index Options":
+    if "Equity and Index Options" == items[3]:
         multiplier = 100
     lot_quantity = float(items[8 + offset])
     if lot_quantity < 0:
@@ -243,6 +243,14 @@ def calculate_deemed_acquisition_cost(buy_date, sell_date, total_sell_price):
     return coefficient * total_sell_price
 
 
+def check_offset(line, offset):
+    if DATA_STR_SINGLE_ACCOUNT == line:
+        offset = 0
+    elif DATA_STR_MULTI_ACCOUNT == line:
+        offset = 1
+    return offset
+
+
 def show_results(prices, gains, losses):
     if request.args.get("json") is not None:
         return {
@@ -269,8 +277,7 @@ def main_post():
     app.logger.setLevel(logging.INFO)
     if app.debug:
         app.logger.setLevel(logging.DEBUG)
-    prices, gains, losses = 0, 0, 0
-    offset = 0
+    prices, gains, losses, offset = 0.0, 0.0, 0.0, 0
     trade_data = {}
     cache_key = datetime.now().strftime("%Y-%m-%d")
     if cache_key not in cache:
@@ -279,41 +286,32 @@ def main_post():
     upload = request.files.get("file")
     lines = upload.read().decode("utf-8").split("\n")
     for line in lines:
-        if line == DATA_STR_SINGLE_ACCOUNT:
-            offset = 0
-            continue
-        elif line == DATA_STR_MULTI_ACCOUNT:
-            offset = 1
-            continue
+        offset = check_offset(line, offset)
         line = remove_extra_commas(line)
         items = line.split(",")
         if (
             len(items) == 15 + offset
-            and items[0] == "Trades"
-            and items[1] == "Data"
-            and items[2] == "Trade"
-            and (items[3] == "Stocks" or items[3] == "Equity and Index Options")
+            and "Trades" == items[0]
+            and "Data" == items[1]
+            and items[2] in ("Trade", "ClosedLot")
+            and items[3] in ("Stocks", "Equity and Index Options")
         ):
             rate = eur_exchange_rate(items[4], items[6 + offset], cache_key)
-            trade_data = parse_trade(items, offset, rate)
-            prices += trade_data["total_selling_price"]
-        elif (
-            len(items) == 15 + offset
-            and items[0] == "Trades"
-            and items[1] == "Data"
-            and items[2] == "ClosedLot"
-            and (items[3] == "Stocks" or items[3] == "Equity and Index Options")
-        ):
-            rate = eur_exchange_rate(items[4], items[6 + offset], cache_key)
-            realized, lot_quantity = parse_closed_lot(trade_data, items, offset, rate)
-            if realized > 0:
-                gains += realized
-            else:
-                losses -= realized
-            trade_data["quantity"] += lot_quantity
-            if trade_data["quantity"] == 0:
-                app.logger.debug("Trade completed.")
-                trade_data = {}
+            if "Trade" == items[2]:
+                trade_data = parse_trade(items, offset, rate)
+                prices += trade_data["total_selling_price"]
+            elif "ClosedLot" == items[2]:
+                realized, lot_quantity = parse_closed_lot(
+                    trade_data, items, offset, rate
+                )
+                if realized > 0:
+                    gains += realized
+                else:
+                    losses -= realized
+                trade_data["quantity"] += lot_quantity
+                if 0 == trade_data["quantity"]:
+                    app.logger.debug("Trade completed.")
+                    trade_data = {}
 
     return show_results(prices, gains, losses)
 
