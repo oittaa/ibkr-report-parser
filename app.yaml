@@ -3,6 +3,7 @@ runtime: python39
 env_variables:
   BUCKET_ID: ibkr-report-parser
   TITLE: IBKR Report Parser
+  SSL_CERT_FILE: ./ca.pem
 
 handlers:
   - url: /static
