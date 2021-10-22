@@ -1,12 +1,9 @@
-name: CI
+name: Nightly Test
 
+# Run the nightly tests at at 6 AM UTC
 on:
-  push:
-    branches:
-    - main
-  pull_request:
-    branches:
-    - main
+  schedule:
+    - cron: "0 6 * * *"
 
 jobs:
   lint:
@@ -44,8 +41,3 @@ jobs:
           coverage run --source=./ --omit=test.py test.py
           coverage report -m
           coverage xml
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v2.1.0
-        if: matrix.python-version == '3.9'
-        with:
-          flags: unittests
