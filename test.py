@@ -1,6 +1,7 @@
 import json
 import os
 import unittest
+import urllib.request
 
 from main import app
 from unittest.mock import patch
@@ -98,6 +99,10 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["prices"], 7.2)
         self.assertEqual(data_json["gains"], 5.0)
         self.assertEqual(data_json["losses"], 0.00)
+
+    def test_connect_suomenpankki(self):
+        response = urllib.request.urlopen("https://www.suomenpankki.fi/")
+        self.assertEqual(response.code, 200)
 
 
 if __name__ == "__main__":
