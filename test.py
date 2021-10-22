@@ -26,6 +26,8 @@ class SmokeTests(unittest.TestCase):
     def test_get_cron(self):
         response = self.app.get("/cron")
         self.assertEqual(response.status_code, 403)
+        response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
+        self.assertEqual(response.status_code, 200)
 
     def test_post_single_account(self):
         data = {"file": open("test-data/data_single_account.csv", "rb")}
