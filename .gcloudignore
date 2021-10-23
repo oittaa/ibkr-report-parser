@@ -21,9 +21,13 @@ __pycache__/
 coverage.xml
 # Ignored by the build system
 /setup.cfg
+.dockerignore
+.editorconfig
 .github/
+Dockerfile
 LICENSE
 README.md
+requirements-dev.txt
 test.py
 test-data/
 .DS_Store
