@@ -51,7 +51,6 @@ jobs:
 
   docker-test:
     runs-on: ubuntu-20.04
-    strategy:
     steps:
       - uses: actions/checkout@v2.3.5
       - name: Set up QEMU
