@@ -1,5 +1,8 @@
 FROM python:3.10.0-slim AS base
 
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Allow statements and log messages to immediately appear in the Knative logs
 ENV PYTHONUNBUFFERED True
 ENV APP_HOME /app
 ENV GUNICORN_WORKERS 1
