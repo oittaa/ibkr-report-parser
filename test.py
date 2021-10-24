@@ -76,7 +76,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
         self.assertEqual(data_json["prices"], 9982.0)
-        self.assertEqual(data_json["gains"], 5988.57)
+        self.assertEqual(data_json["gains"], 5989.2)
         self.assertEqual(data_json["losses"], 0.00)
 
     def test_post_closedlot_without_trade(self):
