@@ -2,7 +2,6 @@ runtime: python39
 
 env_variables:
   BUCKET_ID: ibkr-report-parser
-  TITLE: IBKR Report Parser
 
 handlers:
   - url: /static

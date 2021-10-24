@@ -15,11 +15,11 @@ import zlib
 TITLE = os.getenv("TITLE", "IBKR Report Parser")
 BUCKET_ID = os.getenv("BUCKET_ID", None)
 DEBUG = bool(os.getenv("DEBUG"))
-EXCHANGE_RATES_URL_DEFAULT = (
+DEFAULT_EXCHANGE_RATES_URL = (
     "https://www.suomenpankki.fi/WebForms/ReportViewerPage.aspx?report=/tilastot/valuuttakurssit/"
     "valuuttakurssit_short_xml_fi&output=csv"
 )
-EXCHANGE_RATES_URL = os.getenv("EXCHANGE_RATES_URL", EXCHANGE_RATES_URL_DEFAULT)
+EXCHANGE_RATES_URL = os.getenv("EXCHANGE_RATES_URL", DEFAULT_EXCHANGE_RATES_URL)
 
 DATA_STR_SINGLE_ACCOUNT = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,"
@@ -30,7 +30,7 @@ DATA_STR_MULTI_ACCOUNT = (
     "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
 )
 MAXIMUM_BACKTRACK_DAYS = 7
-RATES_FILE = "exchange_rates-{0}.json.gz"
+RATES_FILE = "official_exchange_rates-{0}.json.gz"
 
 app = Flask(__name__)
 cache = {}
@@ -92,10 +92,13 @@ def download_official_rates(url):
             line.decode("utf-8"),
         )
         if m:
-            # example: rates['MXN-2014-01-02'] = 17.9384
+            # example: rates["2014-01-02"]["MXN"] = 17.9384
             n = re.sub(r"[\s]+", r"", m.group(3))
             rate = float("{0}.{1}".format(n, m.group(4)))
-            rates["{0}-{1}".format(m.group(2), m.group(1))] = rate
+            d = m.group(1)
+            date_rates = rates.get(d, {})
+            date_rates[m.group(2)] = rate
+            rates[d] = date_rates
     app.logger.info("Parsed exchange rates from the retrieved data.")
     return rates
 
@@ -126,7 +129,8 @@ def eur_exchange_rate(currency, date_str, cache_key):
         return 1
     original_date = date = get_date(date_str)
     while original_date - date < timedelta(MAXIMUM_BACKTRACK_DAYS):
-        rate = cache[cache_key].get("{}-{}".format(currency, date.strftime("%Y-%m-%d")))
+        date_rates = cache[cache_key].get(date.strftime("%Y-%m-%d"), {})
+        rate = date_rates.get(currency)
         if rate is not None:
             return rate
         date -= timedelta(1)
@@ -201,9 +205,7 @@ def parse_closed_lot(trade_data, items, offset, rate):
         - trade_data["buy_price"] * multiplier
         + trade_data["fee_per_share"]
     ) * abs(lot_quantity)
-    total_sell_price = (
-        trade_data["sell_price"] * multiplier + trade_data["fee_per_share"]
-    ) * abs(lot_quantity)
+    total_sell_price = trade_data["sell_price"] * multiplier * abs(lot_quantity)
     deemed_cost = calculate_deemed_acquisition_cost(
         get_date(trade_data["buy_date"]),
         get_date(trade_data["sell_date"]),
