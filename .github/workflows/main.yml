@@ -45,7 +45,7 @@ jobs:
           coverage xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v2.1.0
-        if: matrix.python-version == '3.9'
+        if: matrix.python-version == '3.10'
         with:
           flags: unittests
 
@@ -61,9 +61,9 @@ jobs:
         uses: actions/cache@v2.1.6
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-build-x-${{ github.sha }}
+          key: ${{ runner.os }}-build-x-multi-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-build-x
+            ${{ runner.os }}-build-x-multi-
       - name: Build
         uses: docker/build-push-action@v2.7.0
         with:
