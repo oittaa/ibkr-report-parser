@@ -1,34 +1,35 @@
 #!/usr/bin/env python3
 
+from csv import reader
 from datetime import datetime, timedelta, date
 from flask import Flask, abort, render_template, request
 from google.cloud import storage
-import json
+from json import dumps, loads
+from os import getenv
+from re import match, sub
+from urllib.error import HTTPError
+from urllib.request import urlopen
+from zlib import compress, decompress
 import logging
-import os
-import re
-import urllib.error
-import urllib.request
-import zlib
 
 
-TITLE = os.getenv("TITLE", "IBKR Report Parser")
-BUCKET_ID = os.getenv("BUCKET_ID", None)
-DEBUG = bool(os.getenv("DEBUG"))
+TITLE = getenv("TITLE", "IBKR Report Parser")
+BUCKET_ID = getenv("BUCKET_ID", None)
+DEBUG = bool(getenv("DEBUG"))
 DEFAULT_EXCHANGE_RATES_URL = (
     "https://www.suomenpankki.fi/WebForms/ReportViewerPage.aspx?report=/tilastot/valuuttakurssit/"
     "valuuttakurssit_short_xml_fi&output=csv"
 )
-EXCHANGE_RATES_URL = os.getenv("EXCHANGE_RATES_URL", DEFAULT_EXCHANGE_RATES_URL)
+EXCHANGE_RATES_URL = getenv("EXCHANGE_RATES_URL", DEFAULT_EXCHANGE_RATES_URL)
 
 DATA_STR_SINGLE_ACCOUNT = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,"
     "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
-)
+).split(",")
 DATA_STR_MULTI_ACCOUNT = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Account,Symbol,Date/Time,Exchange,"
     "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
-)
+).split(",")
 MAXIMUM_BACKTRACK_DAYS = 7
 RATES_FILE = "official_exchange_rates-{0}.json.gz"
 
@@ -38,10 +39,12 @@ cache = {}
 
 def get_date(date_str):
     try:
-        dtime = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").date()
+        return datetime.strptime(date_str, "%Y-%m-%d, %H:%M:%S").date()
     except ValueError:
-        dtime = datetime.strptime(date_str, "%Y-%m-%d").date()
-    return dtime
+        try:
+            return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").date()
+        except ValueError:
+            return datetime.strptime(date_str, "%Y-%m-%d").date()
 
 
 def add_years(d, years):
@@ -58,15 +61,11 @@ def add_years(d, years):
 
 
 def date_without_time(date_str):
-    return re.sub(r"([0-9-]+) ([0-9:]+)", r"\1", date_str)
+    return sub(r"([0-9-]+),? ([0-9:]+)", r"\1", date_str)
 
 
-def remove_extra_commas(line):
-    # remove comma from datetime
-    line = re.sub(r'"([0-9-]+), ([0-9:]+)"', r"\1 \2", line)
-    # remove commas from numbers like "-1,000"
-    line = re.sub(r'(?!(([^"]*"){2})*[^"]*$),', "", line)
-    return re.sub(r'"([0-9-.]+)"', r"\1", line)
+def float_cleanup(number_str):
+    return float(sub(r"[,\s]+", "", number_str))
 
 
 def download_official_rates(url):
@@ -78,22 +77,22 @@ def download_official_rates(url):
                 "Maximum number of retries exceeded. Could not retrieve currency exchange rates."
             )
         try:
-            response = urllib.request.urlopen(url)
+            response = urlopen(url)
             break
-        except urllib.error.HTTPError as e:
+        except HTTPError as e:
             # Return code error (e.g. 404, 501, ...)
             app.logger.warning("HTTP Error while retrieving rates: %d", e.code)
             max_retries -= 1
 
     app.logger.info("Successfully downloaded the latest exchange rates.")
     for line in response:
-        m = re.match(
+        m = match(
             r'.*,(\d\d\d\d-\d\d-\d\d),EUR-([A-Z]+),"([\d\s]+),([\d]+)"',
             line.decode("utf-8"),
         )
         if m:
             # example: rates["2014-01-02"]["MXN"] = 17.9384
-            n = re.sub(r"[\s]+", r"", m.group(3))
+            n = sub(r"[\s]+", r"", m.group(3))
             rate = float("{0}.{1}".format(n, m.group(4)))
             d = m.group(1)
             date_rates = rates.get(d, {})
@@ -116,11 +115,11 @@ def get_exchange_rates(url, cron_job=False):
             # Try to use exchange rates from the previous day if not in a cron job.
             blob = bucket.get_blob(previous_rates_file)
         if blob:
-            return json.loads(zlib.decompress(blob.download_as_bytes()).decode("utf-8"))
+            return loads(decompress(blob.download_as_bytes()).decode("utf-8"))
     rates = download_official_rates(url)
     if BUCKET_ID:
         blob = bucket.blob(latest_rates_file)
-        blob.upload_from_string(zlib.compress(json.dumps(rates).encode("utf-8")))
+        blob.upload_from_string(compress(dumps(rates).encode("utf-8")))
     return rates
 
 
@@ -147,18 +146,18 @@ def parse_trade(items, offset, rate):
     trade_data = {"total_selling_price": 0, "fee_per_share": 0}
     trade_data["symbol"] = items[5 + offset]
     # Sold stocks have a negative value in the "Quantity" column, items[8 + offset]
-    trade_data["quantity"] = float(items[8 + offset])
+    trade_data["quantity"] = float_cleanup(items[8 + offset])
     if trade_data["quantity"] != 0:
         trade_data["fee_per_share"] = (
-            float(items[11 + offset]) / abs(trade_data["quantity"]) / rate
+            float_cleanup(items[11 + offset]) / abs(trade_data["quantity"]) / rate
         )
     if trade_data["quantity"] < 0:
-        trade_data["total_selling_price"] = float(items[10 + offset]) / rate
+        trade_data["total_selling_price"] = float_cleanup(items[10 + offset]) / rate
         trade_data["sell_date"] = items[6 + offset]
-        trade_data["sell_price"] = float(items[9 + offset]) / rate
+        trade_data["sell_price"] = float_cleanup(items[9 + offset]) / rate
     else:
         trade_data["buy_date"] = items[6 + offset]
-        trade_data["buy_price"] = float(items[9 + offset]) / rate
+        trade_data["buy_price"] = float_cleanup(items[9 + offset]) / rate
     app.logger.debug(
         "Trade %s %s: %s - quantity: %s, price: %s, per share EUR: %f, fee: %s",
         items[3],
@@ -166,7 +165,7 @@ def parse_trade(items, offset, rate):
         items[5 + offset],
         items[8 + offset],
         items[10 + offset],
-        float(items[9 + offset]) / rate,
+        float_cleanup(items[9 + offset]) / rate,
         items[11 + offset],
     )
     return trade_data
@@ -185,13 +184,13 @@ def parse_closed_lot(trade_data, items, offset, rate):
     multiplier = 1
     if "Equity and Index Options" == items[3]:
         multiplier = 100
-    lot_quantity = float(items[8 + offset])
+    lot_quantity = float_cleanup(items[8 + offset])
     if lot_quantity < 0:
         trade_data["sell_date"] = items[6 + offset]
-        trade_data["sell_price"] = float(items[9 + offset]) / rate
+        trade_data["sell_price"] = float_cleanup(items[9 + offset]) / rate
     else:
         trade_data["buy_date"] = items[6 + offset]
-        trade_data["buy_price"] = float(items[9 + offset]) / rate
+        trade_data["buy_price"] = float_cleanup(items[9 + offset]) / rate
     if not all(
         k in trade_data for k in ("sell_date", "sell_price", "buy_date", "buy_price")
     ):
@@ -246,10 +245,10 @@ def calculate_deemed_acquisition_cost(buy_date, sell_date, total_sell_price):
     return coefficient * total_sell_price
 
 
-def check_offset(line, offset):
-    if DATA_STR_SINGLE_ACCOUNT == line:
+def check_offset(items, offset):
+    if DATA_STR_SINGLE_ACCOUNT == items:
         offset = 0
-    elif DATA_STR_MULTI_ACCOUNT == line:
+    elif DATA_STR_MULTI_ACCOUNT == items:
         offset = 1
     return offset
 
@@ -287,11 +286,9 @@ def main_post():
         app.logger.info("Cache miss: %s", cache_key)
         cache[cache_key] = get_exchange_rates(EXCHANGE_RATES_URL)
     upload = request.files.get("file")
-    lines = upload.read().decode("utf-8").split("\n")
-    for line in lines:
-        offset = check_offset(line, offset)
-        line = remove_extra_commas(line)
-        items = line.split(",")
+    lines = reader(upload.read().decode("utf-8").split("\n"))
+    for items in lines:
+        offset = check_offset(items, offset)
         if not (
             len(items) == 15 + offset
             and "Trades" == items[0]
