@@ -127,18 +127,18 @@ def get_exchange_rates(url, cron_job=False):
 def eur_exchange_rate(currency, date_str, cache_key):
     if "EUR" == currency:
         return 1
-    original_date = date = get_date(date_str)
-    while original_date - date < timedelta(MAXIMUM_BACKTRACK_DAYS):
-        date_rates = cache[cache_key].get(date.strftime("%Y-%m-%d"), {})
+    original_date = search_date = get_date(date_str)
+    while original_date - search_date < timedelta(MAXIMUM_BACKTRACK_DAYS):
+        date_rates = cache[cache_key].get(search_date.strftime("%Y-%m-%d"), {})
         rate = date_rates.get(currency)
         if rate is not None:
             return rate
-        date -= timedelta(1)
+        search_date -= timedelta(1)
     app.logger.error(
         "Currency %s not found near date %s - ended search at %s",
         currency,
         original_date,
-        date,
+        search_date,
     )
     abort(400)
 
