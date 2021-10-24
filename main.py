@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from codecs import iterdecode
 from csv import reader
 from datetime import datetime, timedelta, date
 from flask import Flask, abort, render_template, request
@@ -286,7 +287,7 @@ def main_post():
         app.logger.info("Cache miss: %s", cache_key)
         cache[cache_key] = get_exchange_rates(EXCHANGE_RATES_URL)
     upload = request.files.get("file")
-    lines = reader(upload.read().decode("utf-8").split("\n"))
+    lines = reader(iterdecode(upload, "utf-8"))
     for items in lines:
         offset = check_offset(items, offset)
         if not (
