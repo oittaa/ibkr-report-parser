@@ -102,6 +102,24 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["gains"], 5.0)
         self.assertEqual(data_json["losses"], 0.00)
 
+    def test_post_invalid_date_html(self):
+        data = {"file": open("test-data/data_invalid_date.csv", "rb")}
+        response = self.app.post("/", data=data)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.headers.get("Content-Type"), "text/html; charset=utf-8"
+        )
+
+    def test_post_invalid_date_json(self):
+        data = {"file": open("test-data/data_invalid_date.csv", "rb")}
+        response = self.app.post("/?json", data=data)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.headers.get("Content-Type"), "application/json")
+        data_json = json.loads(response.data)
+        self.assertEqual(
+            data_json["error"], "400 Bad Request: Invalid date '20xx-08-23, 09:33:11'"
+        )
+
     def test_connect_suomenpankki(self):
         response = urllib.request.urlopen("https://www.suomenpankki.fi/")
         self.assertEqual(response.code, 200)
