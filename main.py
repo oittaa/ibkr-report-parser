@@ -31,6 +31,7 @@ DATA_STR_MULTI_ACCOUNT = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Account,Symbol,Date/Time,Exchange,"
     "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
 ).split(",")
+DATE_STR_FORMATS = ("%Y-%m-%d, %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d")
 MAXIMUM_BACKTRACK_DAYS = 7
 RATES_FILE = "official_exchange_rates-{0}.json.gz"
 
@@ -39,13 +40,14 @@ cache = {}
 
 
 def get_date(date_str):
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%d, %H:%M:%S").date()
-    except ValueError:
+    for date_format in DATE_STR_FORMATS:
         try:
-            return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").date()
+            return datetime.strptime(date_str, date_format).date()
         except ValueError:
-            return datetime.strptime(date_str, "%Y-%m-%d").date()
+            pass
+    error_msg = "Invalid date '{}'".format(date_str)
+    app.logger.error(error_msg)
+    abort(400, description=error_msg)
 
 
 def add_years(d, years):
@@ -134,13 +136,13 @@ def eur_exchange_rate(currency, date_str, cache_key):
         if rate is not None:
             return rate
         search_date -= timedelta(1)
-    app.logger.error(
-        "Currency %s not found near date %s - ended search at %s",
+    error_msg = "Currency {} not found near date {} - ended search at {}".format(
         currency,
         original_date,
         search_date,
     )
-    abort(400)
+    app.logger.error(error_msg)
+    abort(400, description=error_msg)
 
 
 def parse_trade(items, offset, rate):
@@ -174,14 +176,13 @@ def parse_trade(items, offset, rate):
 
 def parse_closed_lot(trade_data, items, offset, rate):
     if trade_data.get("symbol") != items[5 + offset]:
-        app.logger.error(
-            "Symbol mismatch! Trade: %s, ClosedLot: %s",
-            trade_data.get("symbol"),
-            items[5 + offset],
+        error_msg = "Symbol mismatch! Trade: {}, ClosedLot: {}".format(
+            trade_data.get("symbol"), items[5 + offset]
         )
+        app.logger.error(error_msg)
         app.logger.debug(trade_data)
         app.logger.debug(items)
-        abort(400)
+        abort(400, description=error_msg)
     multiplier = 1
     if "Equity and Index Options" == items[3]:
         multiplier = 100
@@ -192,14 +193,12 @@ def parse_closed_lot(trade_data, items, offset, rate):
     else:
         trade_data["buy_date"] = items[6 + offset]
         trade_data["buy_price"] = float_cleanup(items[9 + offset]) / rate
-    if not all(
-        k in trade_data for k in ("sell_date", "sell_price", "buy_date", "buy_price")
-    ):
-        app.logger.error(
-            "Invalid data, missing one or more of the following: 'sell_date','sell_price','buy_date','buy_price'"
-        )
-        app.logger.debug(trade_data)
-        abort(400)
+    for key in ("sell_date", "sell_price", "buy_date", "buy_price"):
+        if key not in trade_data:
+            error_msg = "Invalid data, missing '{}'".format(key)
+            app.logger.error(error_msg)
+            app.logger.debug(trade_data)
+            abort(400, description=error_msg)
     realized = (
         trade_data["sell_price"] * multiplier
         - trade_data["buy_price"] * multiplier
@@ -267,6 +266,20 @@ def show_results(prices, gains, losses):
         prices=prices,
         gains=gains,
         losses=losses,
+    )
+
+
+@app.errorhandler(400)
+def bad_request(e):
+    if request.args.get("json") is not None:
+        return {"error": str(e)}, 400
+    return (
+        render_template(
+            "error.html",
+            title=TITLE,
+            message=str(e),
+        ),
+        400,
     )
 
 
