@@ -17,11 +17,11 @@
   <p>After saving the statement, run it with CSV output.</p>
   <img src="static/images/run_statement.png" alt="Format: CSV">
   <h2>2. Upload the CSV file.</h2>
-  <form method="post" enctype="multipart/form-data">
+  <form method="post" action="#result" enctype="multipart/form-data">
     <input type="file" name="file">
     <input type="submit" value="Upload">
   </form>
 </div>
-<div>{% block result %}{% endblock %}</div>
+<div id="result">{% block result %}{% endblock %}</div>
 </body>
 </html>
