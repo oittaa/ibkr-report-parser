@@ -2,6 +2,7 @@ runtime: python39
 
 env_variables:
   BUCKET_ID: ibkr-report-parser
+  LOGGING_LEVEL: WARNING
 
 handlers:
   - url: /static
