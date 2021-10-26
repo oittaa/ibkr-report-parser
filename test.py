@@ -56,6 +56,7 @@ class SmokeTests(unittest.TestCase):
         response = self.app.post("/", data=data)
         self.assertEqual(response.status_code, 400)
 
+    @patch("main.LOGGING_LEVEL", "INVALID_LOGGING_LEVEL")
     def test_post_shorting_stocks(self):
         data = {"file": open("test-data/data_shorting_stocks.csv", "rb")}
         response = self.app.post("/?json", data=data)
