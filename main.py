@@ -81,8 +81,7 @@ def extract_exchange_rates(items, currencies):
     return date_rates
 
 
-def download_official_rates_ecb(url, filename="eurofxref-hist.csv"):
-    currencies = None
+def download_official_rates_ecb(url):
     max_retries = 5
     rates = {}
     while True:
@@ -100,14 +99,16 @@ def download_official_rates_ecb(url, filename="eurofxref-hist.csv"):
 
     app.logger.info("Successfully downloaded the latest exchange rates: %s", url)
     with ZipFile(BytesIO(response.read())) as rates_zip:
-        with rates_zip.open("eurofxref-hist.csv") as rates_file:
-            for items in reader(iterdecode(rates_file, "utf-8")):
-                if items[0] == "Date":
-                    currencies = items
-                elif currencies and match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
-                    date_rates = extract_exchange_rates(items, currencies)
-                    if date_rates:
-                        rates[items[0]] = date_rates
+        for filename in rates_zip.namelist():
+            with rates_zip.open(filename) as rates_file:
+                currencies = None
+                for items in reader(iterdecode(rates_file, "utf-8")):
+                    if items[0] == "Date":
+                        currencies = items
+                    elif currencies and match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
+                        date_rates = extract_exchange_rates(items, currencies)
+                        if date_rates:
+                            rates[items[0]] = date_rates
 
     app.logger.info("Parsed exchange rates from the retrieved data.")
     return rates
