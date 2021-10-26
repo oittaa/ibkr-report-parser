@@ -1,7 +1,6 @@
 import json
 import os
 import unittest
-import urllib.request
 
 from main import app
 from unittest.mock import patch
@@ -115,10 +114,6 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(
             data_json["error"], "400 Bad Request: Invalid date '20xx-08-23, 09:33:11'"
         )
-
-    def test_connect_suomenpankki(self):
-        response = urllib.request.urlopen("https://www.suomenpankki.fi/")
-        self.assertEqual(response.code, 200)
 
 
 if __name__ == "__main__":
