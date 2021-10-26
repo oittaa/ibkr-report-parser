@@ -6,11 +6,7 @@ import urllib.request
 from main import app
 from unittest.mock import patch
 
-TEST_URL = (
-    "file://"
-    + os.path.abspath(os.getcwd())
-    + "/test-data/valuuttakurssit_short_xml_fi.csv"
-)
+TEST_URL = "file://" + os.path.abspath(os.getcwd()) + "/test-data/eurofxref-hist.zip"
 
 
 @patch("main.EXCHANGE_RATES_URL", TEST_URL)

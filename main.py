@@ -5,11 +5,13 @@ from csv import reader
 from datetime import datetime, timedelta, date
 from flask import Flask, abort, render_template, request
 from google.cloud import storage
+from io import BytesIO
 from json import dumps, loads
 from os import getenv
 from re import match, sub
 from urllib.error import HTTPError
 from urllib.request import urlopen
+from zipfile import ZipFile
 from zlib import compress, decompress
 import logging
 
@@ -18,8 +20,7 @@ TITLE = getenv("TITLE", "IBKR Report Parser")
 BUCKET_ID = getenv("BUCKET_ID", None)
 DEBUG = bool(getenv("DEBUG"))
 DEFAULT_EXCHANGE_RATES_URL = (
-    "https://www.suomenpankki.fi/WebForms/ReportViewerPage.aspx?report=/tilastot/valuuttakurssit/"
-    "valuuttakurssit_short_xml_fi&output=csv"
+    "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip"
 )
 EXCHANGE_RATES_URL = getenv("EXCHANGE_RATES_URL", DEFAULT_EXCHANGE_RATES_URL)
 
@@ -33,7 +34,7 @@ DATA_STR_MULTI_ACCOUNT = (
 ).split(",")
 DATE_STR_FORMATS = ("%Y-%m-%d, %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d")
 MAXIMUM_BACKTRACK_DAYS = 7
-RATES_FILE = "official_exchange_rates-{0}.json.gz"
+RATES_FILE = "official_ecb_exchange_rates-{0}.json.gz"
 
 app = Flask(__name__)
 cache = {}
@@ -71,7 +72,17 @@ def float_cleanup(number_str):
     return float(sub(r"[,\s]+", "", number_str))
 
 
-def download_official_rates(url):
+def extract_exchange_rates(items, currencies):
+    date_rates = {}
+    for key, val in enumerate(items):
+        if key == 0 or not currencies[key] or not val or val == "N/A":
+            continue
+        date_rates[currencies[key]] = val
+    return date_rates
+
+
+def download_official_rates_ecb(url, filename="eurofxref-hist.csv"):
+    currencies = None
     max_retries = 5
     rates = {}
     while True:
@@ -87,25 +98,22 @@ def download_official_rates(url):
             app.logger.warning("HTTP Error while retrieving rates: %d", e.code)
             max_retries -= 1
 
-    app.logger.info("Successfully downloaded the latest exchange rates.")
-    for line in response:
-        m = match(
-            r'.*,(\d\d\d\d-\d\d-\d\d),EUR-([A-Z]+),"([\d\s]+),([\d]+)"',
-            line.decode("utf-8"),
-        )
-        if m:
-            # example: rates["2014-01-02"]["MXN"] = 17.9384
-            n = sub(r"[\s]+", r"", m.group(3))
-            rate = float("{0}.{1}".format(n, m.group(4)))
-            d = m.group(1)
-            date_rates = rates.get(d, {})
-            date_rates[m.group(2)] = rate
-            rates[d] = date_rates
+    app.logger.info("Successfully downloaded the latest exchange rates: %s", url)
+    with ZipFile(BytesIO(response.read())) as rates_zip:
+        with rates_zip.open("eurofxref-hist.csv") as rates_file:
+            for items in reader(iterdecode(rates_file, "utf-8")):
+                if items[0] == "Date":
+                    currencies = items
+                elif currencies and match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
+                    date_rates = extract_exchange_rates(items, currencies)
+                    if date_rates:
+                        rates[items[0]] = date_rates
+
     app.logger.info("Parsed exchange rates from the retrieved data.")
     return rates
 
 
-def get_exchange_rates(url, cron_job=False):
+def get_exchange_rates(cron_job=False):
     today = datetime.now().strftime("%Y-%m-%d")
     yesterday = (datetime.now() - timedelta(1)).strftime("%Y-%m-%d")
     latest_rates_file = RATES_FILE.format(today)
@@ -119,7 +127,7 @@ def get_exchange_rates(url, cron_job=False):
             blob = bucket.get_blob(previous_rates_file)
         if blob:
             return loads(decompress(blob.download_as_bytes()).decode("utf-8"))
-    rates = download_official_rates(url)
+    rates = download_official_rates_ecb(EXCHANGE_RATES_URL)
     if BUCKET_ID:
         blob = bucket.blob(latest_rates_file)
         blob.upload_from_string(compress(dumps(rates).encode("utf-8")))
@@ -134,7 +142,7 @@ def eur_exchange_rate(currency, date_str, cache_key):
         date_rates = cache[cache_key].get(search_date.strftime("%Y-%m-%d"), {})
         rate = date_rates.get(currency)
         if rate is not None:
-            return rate
+            return float(rate)
         search_date -= timedelta(1)
     error_msg = "Currency {} not found near date {} - ended search at {}".format(
         currency,
@@ -298,7 +306,7 @@ def main_post():
     cache_key = datetime.now().strftime("%Y-%m-%d")
     if cache_key not in cache:
         app.logger.info("Cache miss: %s", cache_key)
-        cache[cache_key] = get_exchange_rates(EXCHANGE_RATES_URL)
+        cache[cache_key] = get_exchange_rates()
     upload = request.files.get("file")
     lines = reader(iterdecode(upload, "utf-8"))
     for items in lines:
@@ -335,7 +343,7 @@ def cron():
     if request.headers.get("X-Appengine-Cron") is None:
         abort(403)
     if BUCKET_ID:
-        _ = get_exchange_rates(EXCHANGE_RATES_URL, cron_job=True)
+        _ = get_exchange_rates(cron_job=True)
     return "Done!"
 
 
