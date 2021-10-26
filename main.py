@@ -23,6 +23,7 @@ DEFAULT_EXCHANGE_RATES_URL = (
     "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip"
 )
 EXCHANGE_RATES_URL = getenv("EXCHANGE_RATES_URL", DEFAULT_EXCHANGE_RATES_URL)
+LOGGING_LEVEL = getenv("LOGGING_LEVEL", "INFO")
 
 DATA_STR_SINGLE_ACCOUNT = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,"
@@ -299,9 +300,12 @@ def main_get():
 
 @app.route("/", methods=["POST"])
 def main_post():
-    app.logger.setLevel(logging.INFO)
     if app.debug:
         app.logger.setLevel(logging.DEBUG)
+    elif LOGGING_LEVEL.upper() in logging._nameToLevel.keys():
+        app.logger.setLevel(logging._nameToLevel[LOGGING_LEVEL.upper()])
+    else:
+        app.logger.setLevel(logging.WARNING)
     prices, gains, losses, offset = 0.0, 0.0, 0.0, 0
     trade_data = {}
     cache_key = datetime.now().strftime("%Y-%m-%d")
