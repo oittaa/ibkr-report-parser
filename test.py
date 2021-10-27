@@ -121,6 +121,14 @@ class SmokeTests(unittest.TestCase):
             response.headers.get("Content-Type"), "text/html; charset=utf-8"
         )
 
+    def test_post_invalid_data(self):
+        data = {"file": open("test-data/eurofxref-hist.zip", "rb")}
+        response = self.app.post("/", data=data)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.headers.get("Content-Type"), "text/html; charset=utf-8"
+        )
+
     def test_post_invalid_date_json(self):
         data = {"file": open("test-data/data_invalid_date.csv", "rb")}
         response = self.app.post("/?json", data=data)
