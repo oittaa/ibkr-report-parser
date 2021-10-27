@@ -1,15 +1,27 @@
 import json
 import os
 import unittest
-
+from gcp_storage_emulator.server import create_server
 from main import app
 from unittest.mock import patch
 
+TEST_BUCKET = "test"
 TEST_URL = "file://" + os.path.abspath(os.getcwd()) + "/test-data/eurofxref-hist.zip"
 
 
 @patch("main.EXCHANGE_RATES_URL", TEST_URL)
 class SmokeTests(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["STORAGE_EMULATOR_HOST"] = "http://localhost:9023"
+        cls.server = create_server("localhost", 9023, in_memory=True, default_bucket=TEST_BUCKET)
+        cls.server.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.stop()
+
     def setUp(self):
         self.app = app.test_client()
         self.assertEqual(app.debug, False)
@@ -18,6 +30,7 @@ class SmokeTests(unittest.TestCase):
         response = self.app.get("/")
         self.assertEqual(response.status_code, 200)
 
+    @patch("main.BUCKET_ID", TEST_BUCKET)
     def test_get_cron(self):
         response = self.app.get("/cron")
         self.assertEqual(response.status_code, 403)
@@ -56,7 +69,6 @@ class SmokeTests(unittest.TestCase):
         response = self.app.post("/", data=data)
         self.assertEqual(response.status_code, 400)
 
-    @patch("main.LOGGING_LEVEL", "INVALID_LOGGING_LEVEL")
     def test_post_shorting_stocks(self):
         data = {"file": open("test-data/data_shorting_stocks.csv", "rb")}
         response = self.app.post("/?json", data=data)
@@ -98,6 +110,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["gains"], 5.0)
         self.assertEqual(data_json["losses"], 0.00)
 
+    @patch("main.LOGGING_LEVEL", "INVALID_LOGGING_LEVEL")
     def test_post_invalid_date_html(self):
         data = {"file": open("test-data/data_invalid_date.csv", "rb")}
         response = self.app.post("/", data=data)
@@ -106,6 +119,9 @@ class SmokeTests(unittest.TestCase):
             response.headers.get("Content-Type"), "text/html; charset=utf-8"
         )
 
+    @patch("main._cache", {})
+    @patch("main._MAXCACHE", 0)
+    @patch("main.BUCKET_ID", TEST_BUCKET)
     def test_post_invalid_date_json(self):
         data = {"file": open("test-data/data_invalid_date.csv", "rb")}
         response = self.app.post("/?json", data=data)

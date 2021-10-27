@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 from codecs import iterdecode
 from csv import reader
 from datetime import datetime, timedelta, date
@@ -13,7 +14,6 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import ZipFile
 from zlib import compress, decompress
-import logging
 
 
 TITLE = getenv("TITLE", "IBKR Report Parser")
@@ -25,20 +25,23 @@ DEFAULT_EXCHANGE_RATES_URL = (
 EXCHANGE_RATES_URL = getenv("EXCHANGE_RATES_URL", DEFAULT_EXCHANGE_RATES_URL)
 LOGGING_LEVEL = getenv("LOGGING_LEVEL", "INFO")
 
-DATA_STR_SINGLE_ACCOUNT = (
+SINGLE_ACCOUNT_DATA = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,"
     "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
 ).split(",")
-DATA_STR_MULTI_ACCOUNT = (
+MULTI_ACCOUNT_DATA = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Account,Symbol,Date/Time,Exchange,"
     "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
 ).split(",")
 DATE_STR_FORMATS = ("%Y-%m-%d, %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d")
-MAXIMUM_BACKTRACK_DAYS = 7
+MAX_BACKTRACK_DAYS = 7
+MAX_HTTP_RETRIES = 5
 RATES_FILE = "official_ecb_exchange_rates-{0}.json.gz"
 
 app = Flask(__name__)
-cache = {}
+
+_cache = {}
+_MAXCACHE = 5
 
 
 def get_date(date_str):
@@ -83,10 +86,10 @@ def extract_exchange_rates(items, currencies):
 
 
 def download_official_rates_ecb(url):
-    max_retries = 5
+    retries = 0
     rates = {}
     while True:
-        if max_retries < 0:
+        if retries > MAX_HTTP_RETRIES:
             raise ValueError(
                 "Maximum number of retries exceeded. Could not retrieve currency exchange rates."
             )
@@ -96,7 +99,7 @@ def download_official_rates_ecb(url):
         except HTTPError as e:
             # Return code error (e.g. 404, 501, ...)
             app.logger.warning("HTTP Error while retrieving rates: %d", e.code)
-            max_retries -= 1
+            retries += 1
 
     app.logger.info("Successfully downloaded the latest exchange rates: %s", url)
     with ZipFile(BytesIO(response.read())) as rates_zip:
@@ -136,12 +139,21 @@ def get_exchange_rates(cron_job=False):
     return rates
 
 
-def eur_exchange_rate(currency, date_str, cache_key):
+def eur_exchange_rate(currency, date_str):
     if "EUR" == currency:
         return 1
+    cache_key = datetime.now().strftime("%Y-%m-%d")
+    if cache_key not in _cache:
+        app.logger.info("Cache miss: %s", cache_key)
+        if len(_cache) >= _MAXCACHE:
+            try:
+                del _cache[next(iter(_cache))]
+            except (StopIteration, RuntimeError, KeyError):
+                pass
+        _cache[cache_key] = get_exchange_rates()
     original_date = search_date = get_date(date_str)
-    while original_date - search_date < timedelta(MAXIMUM_BACKTRACK_DAYS):
-        date_rates = cache[cache_key].get(search_date.strftime("%Y-%m-%d"), {})
+    while original_date - search_date < timedelta(MAX_BACKTRACK_DAYS):
+        date_rates = _cache[cache_key].get(search_date.strftime("%Y-%m-%d"), {})
         rate = date_rates.get(currency)
         if rate is not None:
             return float(rate)
@@ -256,9 +268,9 @@ def calculate_deemed_acquisition_cost(buy_date, sell_date, total_sell_price):
 
 
 def check_offset(items, offset):
-    if DATA_STR_SINGLE_ACCOUNT == items:
+    if SINGLE_ACCOUNT_DATA == items:
         offset = 0
-    elif DATA_STR_MULTI_ACCOUNT == items:
+    elif MULTI_ACCOUNT_DATA == items:
         offset = 1
     return offset
 
@@ -308,10 +320,6 @@ def main_post():
         app.logger.setLevel(logging.WARNING)
     prices, gains, losses, offset = 0.0, 0.0, 0.0, 0
     trade_data = {}
-    cache_key = datetime.now().strftime("%Y-%m-%d")
-    if cache_key not in cache:
-        app.logger.info("Cache miss: %s", cache_key)
-        cache[cache_key] = get_exchange_rates()
     upload = request.files.get("file")
     lines = reader(iterdecode(upload, "utf-8"))
     for items in lines:
@@ -324,7 +332,7 @@ def main_post():
             and items[3] in ("Stocks", "Equity and Index Options")
         ):
             continue
-        rate = eur_exchange_rate(items[4], items[6 + offset], cache_key)
+        rate = eur_exchange_rate(items[4], items[6 + offset])
         if "Trade" == items[2]:
             trade_data = parse_trade(items, offset, rate)
             prices += trade_data["total_selling_price"]
