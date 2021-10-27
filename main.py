@@ -298,6 +298,36 @@ def show_results(prices, gains, losses):
     )
 
 
+def calculate_prices_gains_losses(lines):
+    prices, gains, losses, offset = 0.0, 0.0, 0.0, 0
+    trade_data = {}
+    for items in lines:
+        offset = check_offset(items, offset)
+        if not (
+            len(items) == 15 + offset
+            and "Trades" == items[0]
+            and "Data" == items[1]
+            and items[2] in ("Trade", "ClosedLot")
+            and items[3] in ("Stocks", "Equity and Index Options")
+        ):
+            continue
+        rate = eur_exchange_rate(items[4], items[6 + offset])
+        if "Trade" == items[2]:
+            trade_data = parse_trade(items, offset, rate)
+            prices += trade_data["total_selling_price"]
+        elif "ClosedLot" == items[2]:
+            realized, lot_quantity = parse_closed_lot(trade_data, items, offset, rate)
+            if realized > 0:
+                gains += realized
+            else:
+                losses -= realized
+            trade_data["quantity"] += lot_quantity
+            if 0 == trade_data["quantity"]:
+                app.logger.debug("Trade completed.")
+                trade_data = {}
+    return prices, gains, losses
+
+
 @app.errorhandler(400)
 def bad_request(e):
     if request.args.get("json") is not None:
@@ -325,34 +355,12 @@ def main_post():
         app.logger.setLevel(logging._nameToLevel[LOGGING_LEVEL.upper()])
     else:
         app.logger.setLevel(logging.WARNING)
-    prices, gains, losses, offset = 0.0, 0.0, 0.0, 0
-    trade_data = {}
     upload = request.files.get("file")
     lines = reader(iterdecode(upload, "utf-8"))
-    for items in lines:
-        offset = check_offset(items, offset)
-        if not (
-            len(items) == 15 + offset
-            and "Trades" == items[0]
-            and "Data" == items[1]
-            and items[2] in ("Trade", "ClosedLot")
-            and items[3] in ("Stocks", "Equity and Index Options")
-        ):
-            continue
-        rate = eur_exchange_rate(items[4], items[6 + offset])
-        if "Trade" == items[2]:
-            trade_data = parse_trade(items, offset, rate)
-            prices += trade_data["total_selling_price"]
-        elif "ClosedLot" == items[2]:
-            realized, lot_quantity = parse_closed_lot(trade_data, items, offset, rate)
-            if realized > 0:
-                gains += realized
-            else:
-                losses -= realized
-            trade_data["quantity"] += lot_quantity
-            if 0 == trade_data["quantity"]:
-                app.logger.debug("Trade completed.")
-                trade_data = {}
+    try:
+        prices, gains, losses = calculate_prices_gains_losses(lines)
+    except UnicodeDecodeError:
+        abort(400, description="Input data not in UTF-8 text format.")
 
     return show_results(prices, gains, losses)
 
