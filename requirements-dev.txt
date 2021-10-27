@@ -1,2 +1,3 @@
 coverage==6.0.2
 flake8==4.0.1
+gcp-storage-emulator==2021.10.7
