@@ -11,11 +11,12 @@ TEST_URL = "file://" + os.path.abspath(os.getcwd()) + "/test-data/eurofxref-hist
 
 @patch("main.EXCHANGE_RATES_URL", TEST_URL)
 class SmokeTests(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         os.environ["STORAGE_EMULATOR_HOST"] = "http://localhost:9023"
-        cls.server = create_server("localhost", 9023, in_memory=True, default_bucket=TEST_BUCKET)
+        cls.server = create_server(
+            "localhost", 9023, in_memory=True, default_bucket=TEST_BUCKET
+        )
         cls.server.start()
 
     @classmethod
