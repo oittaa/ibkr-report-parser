@@ -5,7 +5,6 @@ from codecs import iterdecode
 from csv import reader
 from datetime import datetime, timedelta, date
 from flask import Flask, abort, render_template, request
-from google.auth.credentials import AnonymousCredentials
 from google.cloud import exceptions, storage
 from io import BytesIO
 from json import dumps, loads
@@ -126,9 +125,8 @@ def get_exchange_rates(cron_job=False):
     previous_rates_file = RATES_FILE.format(yesterday)
     if BUCKET_ID:
         if getenv("STORAGE_EMULATOR_HOST"):
-            client = storage.Client(
-                credentials=AnonymousCredentials(), project=getenv("PROJECT_ID", "test")
-            )
+            client = storage.Client.create_anonymous_client()
+            client.project = "<none>"
         else:
             client = storage.Client()
         try:
