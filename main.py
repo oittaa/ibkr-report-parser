@@ -5,7 +5,8 @@ from codecs import iterdecode
 from csv import reader
 from datetime import datetime, timedelta, date
 from flask import Flask, abort, render_template, request
-from google.cloud import storage
+from google.auth.credentials import AnonymousCredentials
+from google.cloud import exceptions, storage
 from io import BytesIO
 from json import dumps, loads
 from os import getenv
@@ -124,8 +125,16 @@ def get_exchange_rates(cron_job=False):
     latest_rates_file = RATES_FILE.format(today)
     previous_rates_file = RATES_FILE.format(yesterday)
     if BUCKET_ID:
-        client = storage.Client()
-        bucket = client.get_bucket(BUCKET_ID)
+        if getenv("STORAGE_EMULATOR_HOST"):
+            client = storage.Client(
+                credentials=AnonymousCredentials(), project=getenv("PROJECT_ID", "test")
+            )
+        else:
+            client = storage.Client()
+        try:
+            bucket = client.get_bucket(BUCKET_ID)
+        except exceptions.NotFound:
+            bucket = client.create_bucket(BUCKET_ID)
         blob = bucket.get_blob(latest_rates_file)
         if not blob and not cron_job:
             # Try to use exchange rates from the previous day if not in a cron job.
