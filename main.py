@@ -8,12 +8,12 @@ from flask import Flask, abort, render_template, request
 from google.cloud import exceptions, storage
 from io import BytesIO
 from json import dumps, loads
+from lzma import compress, decompress
 from os import getenv
 from re import match, sub
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import ZipFile
-from zlib import compress, decompress
 
 
 TITLE = getenv("TITLE", "IBKR Report Parser")
@@ -33,10 +33,11 @@ MULTI_ACCOUNT_DATA = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Account,Symbol,Date/Time,Exchange,"
     "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
 ).split(",")
+OFFSET_DICT = {tuple(SINGLE_ACCOUNT_DATA): 0, tuple(MULTI_ACCOUNT_DATA): 1}
 DATE_STR_FORMATS = ("%Y-%m-%d, %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d")
 MAX_BACKTRACK_DAYS = 7
 MAX_HTTP_RETRIES = 5
-RATES_FILE = "official_ecb_exchange_rates-{0}.json.gz"
+SAVED_RATES_FILE = "official_ecb_exchange_rates-{0}.json.xz"
 
 app = Flask(__name__)
 
@@ -76,18 +77,25 @@ def float_cleanup(number_str):
     return float(sub(r"[,\s]+", "", number_str))
 
 
-def extract_exchange_rates(items, currencies):
-    date_rates = {}
-    for key, val in enumerate(items):
-        if key == 0 or not currencies[key] or not val or val == "N/A":
-            continue
-        date_rates[currencies[key]] = val
-    return date_rates
+def extract_exchange_rates(rates_file):
+    rates = {}
+    currencies = None
+    for items in reader(iterdecode(rates_file, "utf-8")):
+        if items[0] == "Date":
+            currencies = items
+        elif currencies and match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
+            date_rates = {}
+            for key, val in enumerate(items):
+                if key == 0 or not currencies[key] or not val or val == "N/A":
+                    continue
+                date_rates[currencies[key]] = val
+            if date_rates:
+                rates[items[0]] = date_rates
+    return rates
 
 
 def download_official_rates_ecb(url):
     retries = 0
-    rates = {}
     while True:
         if retries > MAX_HTTP_RETRIES:
             raise ValueError(
@@ -105,24 +113,13 @@ def download_official_rates_ecb(url):
     with ZipFile(BytesIO(response.read())) as rates_zip:
         for filename in rates_zip.namelist():
             with rates_zip.open(filename) as rates_file:
-                currencies = None
-                for items in reader(iterdecode(rates_file, "utf-8")):
-                    if items[0] == "Date":
-                        currencies = items
-                    elif currencies and match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
-                        date_rates = extract_exchange_rates(items, currencies)
-                        if date_rates:
-                            rates[items[0]] = date_rates
+                rates = extract_exchange_rates(rates_file)
 
     app.logger.info("Parsed exchange rates from the retrieved data.")
     return rates
 
 
 def get_exchange_rates(cron_job=False):
-    today = datetime.now().strftime("%Y-%m-%d")
-    yesterday = (datetime.now() - timedelta(1)).strftime("%Y-%m-%d")
-    latest_rates_file = RATES_FILE.format(today)
-    previous_rates_file = RATES_FILE.format(yesterday)
     if BUCKET_ID:
         if getenv("STORAGE_EMULATOR_HOST"):
             client = storage.Client.create_anonymous_client()
@@ -133,9 +130,13 @@ def get_exchange_rates(cron_job=False):
             bucket = client.get_bucket(BUCKET_ID)
         except exceptions.NotFound:
             bucket = client.create_bucket(BUCKET_ID)
+        today = datetime.now().strftime("%Y-%m-%d")
+        latest_rates_file = SAVED_RATES_FILE.format(today)
         blob = bucket.get_blob(latest_rates_file)
         if not blob and not cron_job:
             # Try to use exchange rates from the previous day if not in a cron job.
+            yesterday = (datetime.now() - timedelta(1)).strftime("%Y-%m-%d")
+            previous_rates_file = SAVED_RATES_FILE.format(yesterday)
             blob = bucket.get_blob(previous_rates_file)
         if blob:
             return loads(decompress(blob.download_as_bytes()).decode("utf-8"))
@@ -147,7 +148,7 @@ def get_exchange_rates(cron_job=False):
 
 
 def eur_exchange_rate(currency, date_str):
-    if "EUR" == currency:
+    if currency == "EUR":
         return 1
     cache_key = datetime.now().strftime("%Y-%m-%d")
     if cache_key not in _cache:
@@ -212,9 +213,6 @@ def parse_closed_lot(trade_data, items, offset, rate):
         app.logger.debug(trade_data)
         app.logger.debug(items)
         abort(400, description=error_msg)
-    multiplier = 1
-    if "Equity and Index Options" == items[3]:
-        multiplier = 100
     lot_quantity = float_cleanup(items[8 + offset])
     if lot_quantity < 0:
         trade_data["sell_date"] = items[6 + offset]
@@ -228,15 +226,18 @@ def parse_closed_lot(trade_data, items, offset, rate):
             app.logger.error(error_msg)
             app.logger.debug(trade_data)
             abort(400, description=error_msg)
+    multiplier = 1
+    if items[3] == "Equity and Index Options":
+        multiplier = 100
     realized = (
         trade_data["sell_price"] * multiplier
         - trade_data["buy_price"] * multiplier
         + trade_data["fee_per_share"]
     ) * abs(lot_quantity)
     total_sell_price = trade_data["sell_price"] * multiplier * abs(lot_quantity)
-    deemed_cost = calculate_deemed_acquisition_cost(
-        get_date(trade_data["buy_date"]),
-        get_date(trade_data["sell_date"]),
+    deemed_cost = deemed_acquisition_cost(
+        trade_data["buy_date"],
+        trade_data["sell_date"],
         total_sell_price,
     )
     deemed_profit = total_sell_price - deemed_cost
@@ -261,25 +262,47 @@ def parse_closed_lot(trade_data, items, offset, rate):
     return min(realized, deemed_profit), lot_quantity
 
 
-def calculate_deemed_acquisition_cost(buy_date, sell_date, total_sell_price):
+def deemed_acquisition_cost(buy_date, sell_date, total_sell_price):
     """If you have owned the shares you sell for less than 10 years, the deemed
     acquisition cost is 20% of the selling price of the shares.
     If you have owned the shares you sell for at least 10 years, the deemed
     acquisition cost is 40% of the selling price of the shares.
     """
-    coefficient = 0.2
-    max_coefficient_before = add_years(sell_date, -10)
-    if buy_date < max_coefficient_before:
-        coefficient = 0.4
-    return coefficient * total_sell_price
+    multiplier = 0.2
+    if get_date(buy_date) <= add_years(get_date(sell_date), -10):
+        multiplier = 0.4
+    return multiplier * total_sell_price
 
 
-def check_offset(items, offset):
-    if SINGLE_ACCOUNT_DATA == items:
-        offset = 0
-    elif MULTI_ACCOUNT_DATA == items:
-        offset = 1
-    return offset
+def calculate_prices_gains_losses(lines):
+    prices, gains, losses, offset = 0.0, 0.0, 0.0, 0
+    trade_data = {}
+    for items in lines:
+        items = tuple(items)
+        offset = OFFSET_DICT.get(items, offset)
+        if not (
+            len(items) == 15 + offset
+            and items[0] == "Trades"
+            and items[1] == "Data"
+            and items[2] in ("Trade", "ClosedLot")
+            and items[3] in ("Stocks", "Equity and Index Options")
+        ):
+            continue
+        rate = eur_exchange_rate(items[4], items[6 + offset])
+        if items[2] == "Trade":
+            trade_data = parse_trade(items, offset, rate)
+            prices += trade_data["total_selling_price"]
+        elif items[2] == "ClosedLot":
+            realized, lot_quantity = parse_closed_lot(trade_data, items, offset, rate)
+            if realized > 0:
+                gains += realized
+            else:
+                losses -= realized
+            trade_data["quantity"] += lot_quantity
+            if trade_data["quantity"] == 0:
+                app.logger.debug("Trade completed.")
+                trade_data = {}
+    return prices, gains, losses
 
 
 def show_results(prices, gains, losses):
@@ -296,36 +319,6 @@ def show_results(prices, gains, losses):
         gains=gains,
         losses=losses,
     )
-
-
-def calculate_prices_gains_losses(lines):
-    prices, gains, losses, offset = 0.0, 0.0, 0.0, 0
-    trade_data = {}
-    for items in lines:
-        offset = check_offset(items, offset)
-        if not (
-            len(items) == 15 + offset
-            and "Trades" == items[0]
-            and "Data" == items[1]
-            and items[2] in ("Trade", "ClosedLot")
-            and items[3] in ("Stocks", "Equity and Index Options")
-        ):
-            continue
-        rate = eur_exchange_rate(items[4], items[6 + offset])
-        if "Trade" == items[2]:
-            trade_data = parse_trade(items, offset, rate)
-            prices += trade_data["total_selling_price"]
-        elif "ClosedLot" == items[2]:
-            realized, lot_quantity = parse_closed_lot(trade_data, items, offset, rate)
-            if realized > 0:
-                gains += realized
-            else:
-                losses -= realized
-            trade_data["quantity"] += lot_quantity
-            if 0 == trade_data["quantity"]:
-                app.logger.debug("Trade completed.")
-                trade_data = {}
-    return prices, gains, losses
 
 
 @app.errorhandler(400)
