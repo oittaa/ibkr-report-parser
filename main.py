@@ -178,14 +178,16 @@ def parse_trade(items, offset, rate):
         "symbol": items[5 + offset],
         "total_selling_price": Decimal(0),
     }
+    date_str = items[6 + offset]
+    price_per_share = decimal_cleanup(items[9 + offset]) / rate
     # Sold stocks have a negative value in the "Quantity" column, items[8 + offset]
     if trade_data["quantity"] < 0:
         trade_data["total_selling_price"] = decimal_cleanup(items[10 + offset]) / rate
-        trade_data["sell_date"] = items[6 + offset]
-        trade_data["sell_price"] = decimal_cleanup(items[9 + offset]) / rate
+        trade_data["sell_date"] = date_str
+        trade_data["sell_price"] = price_per_share
     else:
-        trade_data["buy_date"] = items[6 + offset]
-        trade_data["buy_price"] = decimal_cleanup(items[9 + offset]) / rate
+        trade_data["buy_date"] = date_str
+        trade_data["buy_price"] = price_per_share
     app.logger.debug(
         "Trade %s %s: %s - quantity: %s, price: %s, per share EUR: %f, fee: %s",
         items[3],
@@ -193,7 +195,7 @@ def parse_trade(items, offset, rate):
         items[5 + offset],
         items[8 + offset],
         items[10 + offset],
-        decimal_cleanup(items[9 + offset]) / rate,
+        price_per_share,
         items[11 + offset],
     )
     return trade_data
@@ -208,13 +210,15 @@ def realized_from_closed_lot(trade_data, items, offset, rate):
         app.logger.debug(trade_data)
         app.logger.debug(items)
         abort(400, description=error_msg)
+    date_str = items[6 + offset]
+    price_per_share = decimal_cleanup(items[9 + offset]) / rate
     lot_quantity = decimal_cleanup(items[8 + offset])
     if lot_quantity < 0:
-        trade_data["sell_date"] = items[6 + offset]
-        trade_data["sell_price"] = decimal_cleanup(items[9 + offset]) / rate
+        trade_data["sell_date"] = date_str
+        trade_data["sell_price"] = price_per_share
     else:
-        trade_data["buy_date"] = items[6 + offset]
-        trade_data["buy_price"] = decimal_cleanup(items[9 + offset]) / rate
+        trade_data["buy_date"] = date_str
+        trade_data["buy_price"] = price_per_share
     for key in ("sell_date", "sell_price", "buy_date", "buy_price"):
         if key not in trade_data:
             error_msg = "Invalid data, missing '{}'".format(key)
