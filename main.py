@@ -4,6 +4,7 @@ import logging
 from codecs import iterdecode
 from csv import reader
 from datetime import datetime, timedelta, date
+from decimal import Decimal
 from flask import Flask, abort, render_template, request
 from google.cloud import exceptions, storage
 from io import BytesIO
@@ -15,26 +16,23 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import ZipFile
 
-
 TITLE = getenv("TITLE", "IBKR Report Parser")
 BUCKET_ID = getenv("BUCKET_ID", None)
 DEBUG = bool(getenv("DEBUG"))
-DEFAULT_EXCHANGE_RATES_URL = (
-    "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip"
-)
-EXCHANGE_RATES_URL = getenv("EXCHANGE_RATES_URL", DEFAULT_EXCHANGE_RATES_URL)
+_DEFAULT_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip"
+EXCHANGE_RATES_URL = getenv("EXCHANGE_RATES_URL", _DEFAULT_URL)
 LOGGING_LEVEL = getenv("LOGGING_LEVEL", "INFO")
-
-SINGLE_ACCOUNT_DATA = (
+_SINGLE_ACCOUNT = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,"
     "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
 ).split(",")
-MULTI_ACCOUNT_DATA = (
+_MULTI_ACCOUNT = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Account,Symbol,Date/Time,Exchange,"
     "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
 ).split(",")
-OFFSET_DICT = {tuple(SINGLE_ACCOUNT_DATA): 0, tuple(MULTI_ACCOUNT_DATA): 1}
-DATE_STR_FORMATS = ("%Y-%m-%d, %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d")
+OFFSET_DICT = {tuple(_SINGLE_ACCOUNT): 0, tuple(_MULTI_ACCOUNT): 1}
+_DATE = "%Y-%m-%d"
+DATE_STR_FORMATS = (_DATE + ", %H:%M:%S", _DATE + " %H:%M:%S", _DATE)
 MAX_BACKTRACK_DAYS = 7
 MAX_HTTP_RETRIES = 5
 SAVED_RATES_FILE = "official_ecb_exchange_rates-{0}.json.xz"
@@ -70,11 +68,11 @@ def add_years(d, years):
 
 
 def date_without_time(date_str):
-    return sub(r"([0-9-]+),? ([0-9:]+)", r"\1", date_str)
+    return sub(r"(\d\d\d\d-\d\d-\d\d),? ([0-9:]+)", r"\1", date_str)
 
 
-def float_cleanup(number_str):
-    return float(sub(r"[,\s]+", "", number_str))
+def decimal_cleanup(number_str):
+    return Decimal(sub(r"[,\s]+", "", number_str))
 
 
 def extract_exchange_rates(rates_file):
@@ -108,14 +106,12 @@ def download_official_rates_ecb(url):
             # Return code error (e.g. 404, 501, ...)
             app.logger.warning("HTTP Error while retrieving rates: %d", e.code)
             retries += 1
-
-    app.logger.info("Successfully downloaded the latest exchange rates: %s", url)
+    app.logger.debug("Successfully downloaded the latest exchange rates: %s", url)
     with ZipFile(BytesIO(response.read())) as rates_zip:
         for filename in rates_zip.namelist():
             with rates_zip.open(filename) as rates_file:
                 rates = extract_exchange_rates(rates_file)
-
-    app.logger.info("Parsed exchange rates from the retrieved data.")
+    app.logger.debug("Parsed exchange rates from the retrieved data.")
     return rates
 
 
@@ -130,12 +126,12 @@ def get_exchange_rates(cron_job=False):
             bucket = client.get_bucket(BUCKET_ID)
         except exceptions.NotFound:
             bucket = client.create_bucket(BUCKET_ID)
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now().strftime(_DATE)
         latest_rates_file = SAVED_RATES_FILE.format(today)
         blob = bucket.get_blob(latest_rates_file)
         if not blob and not cron_job:
             # Try to use exchange rates from the previous day if not in a cron job.
-            yesterday = (datetime.now() - timedelta(1)).strftime("%Y-%m-%d")
+            yesterday = (datetime.now() - timedelta(1)).strftime(_DATE)
             previous_rates_file = SAVED_RATES_FILE.format(yesterday)
             blob = bucket.get_blob(previous_rates_file)
         if blob:
@@ -149,10 +145,10 @@ def get_exchange_rates(cron_job=False):
 
 def eur_exchange_rate(currency, date_str):
     if currency == "EUR":
-        return 1
-    cache_key = datetime.now().strftime("%Y-%m-%d")
+        return Decimal(1)
+    cache_key = datetime.now().strftime(_DATE)
     if cache_key not in _cache:
-        app.logger.info("Cache miss: %s", cache_key)
+        app.logger.debug("Cache miss: %s", cache_key)
         if len(_cache) >= _MAXCACHE:
             try:
                 del _cache[next(iter(_cache))]
@@ -161,10 +157,10 @@ def eur_exchange_rate(currency, date_str):
         _cache[cache_key] = get_exchange_rates()
     original_date = search_date = get_date(date_str)
     while original_date - search_date < timedelta(MAX_BACKTRACK_DAYS):
-        date_rates = _cache[cache_key].get(search_date.strftime("%Y-%m-%d"), {})
+        date_rates = _cache[cache_key].get(search_date.strftime(_DATE), {})
         rate = date_rates.get(currency)
         if rate is not None:
-            return float(rate)
+            return Decimal(rate)
         search_date -= timedelta(1)
     error_msg = "Currency {} not found near date {} - ended search at {}".format(
         currency,
@@ -176,21 +172,20 @@ def eur_exchange_rate(currency, date_str):
 
 
 def parse_trade(items, offset, rate):
-    trade_data = {"total_selling_price": 0, "fee_per_share": 0}
-    trade_data["symbol"] = items[5 + offset]
+    trade_data = {
+        "fee": decimal_cleanup(items[11 + offset]) / rate,
+        "quantity": decimal_cleanup(items[8 + offset]),
+        "symbol": items[5 + offset],
+        "total_selling_price": Decimal(0),
+    }
     # Sold stocks have a negative value in the "Quantity" column, items[8 + offset]
-    trade_data["quantity"] = float_cleanup(items[8 + offset])
-    if trade_data["quantity"] != 0:
-        trade_data["fee_per_share"] = (
-            float_cleanup(items[11 + offset]) / abs(trade_data["quantity"]) / rate
-        )
     if trade_data["quantity"] < 0:
-        trade_data["total_selling_price"] = float_cleanup(items[10 + offset]) / rate
+        trade_data["total_selling_price"] = decimal_cleanup(items[10 + offset]) / rate
         trade_data["sell_date"] = items[6 + offset]
-        trade_data["sell_price"] = float_cleanup(items[9 + offset]) / rate
+        trade_data["sell_price"] = decimal_cleanup(items[9 + offset]) / rate
     else:
         trade_data["buy_date"] = items[6 + offset]
-        trade_data["buy_price"] = float_cleanup(items[9 + offset]) / rate
+        trade_data["buy_price"] = decimal_cleanup(items[9 + offset]) / rate
     app.logger.debug(
         "Trade %s %s: %s - quantity: %s, price: %s, per share EUR: %f, fee: %s",
         items[3],
@@ -198,13 +193,13 @@ def parse_trade(items, offset, rate):
         items[5 + offset],
         items[8 + offset],
         items[10 + offset],
-        float_cleanup(items[9 + offset]) / rate,
+        decimal_cleanup(items[9 + offset]) / rate,
         items[11 + offset],
     )
     return trade_data
 
 
-def parse_closed_lot(trade_data, items, offset, rate):
+def realized_from_closed_lot(trade_data, items, offset, rate):
     if trade_data.get("symbol") != items[5 + offset]:
         error_msg = "Symbol mismatch! Trade: {}, ClosedLot: {}".format(
             trade_data.get("symbol"), items[5 + offset]
@@ -213,34 +208,30 @@ def parse_closed_lot(trade_data, items, offset, rate):
         app.logger.debug(trade_data)
         app.logger.debug(items)
         abort(400, description=error_msg)
-    lot_quantity = float_cleanup(items[8 + offset])
+    lot_quantity = decimal_cleanup(items[8 + offset])
     if lot_quantity < 0:
         trade_data["sell_date"] = items[6 + offset]
-        trade_data["sell_price"] = float_cleanup(items[9 + offset]) / rate
+        trade_data["sell_price"] = decimal_cleanup(items[9 + offset]) / rate
     else:
         trade_data["buy_date"] = items[6 + offset]
-        trade_data["buy_price"] = float_cleanup(items[9 + offset]) / rate
+        trade_data["buy_price"] = decimal_cleanup(items[9 + offset]) / rate
     for key in ("sell_date", "sell_price", "buy_date", "buy_price"):
         if key not in trade_data:
             error_msg = "Invalid data, missing '{}'".format(key)
             app.logger.error(error_msg)
             app.logger.debug(trade_data)
             abort(400, description=error_msg)
-    multiplier = 1
-    if items[3] == "Equity and Index Options":
-        multiplier = 100
-    realized = (
-        trade_data["sell_price"] * multiplier
-        - trade_data["buy_price"] * multiplier
-        + trade_data["fee_per_share"]
-    ) * abs(lot_quantity)
+    multiplier = 100 if items[3] == "Equity and Index Options" else 1
+    realized = abs(lot_quantity) * (
+        ((trade_data["sell_price"] - trade_data["buy_price"]) * multiplier)
+        + trade_data["fee"] / abs(trade_data["quantity"])
+    )
     total_sell_price = trade_data["sell_price"] * multiplier * abs(lot_quantity)
-    deemed_cost = deemed_acquisition_cost(
+    deemed = deemed_profit(
         trade_data["buy_date"],
         trade_data["sell_date"],
         total_sell_price,
     )
-    deemed_profit = total_sell_price - deemed_cost
     app.logger.debug(
         "ClosedLot %s %s: %s - quantity: %s, realized: %.2f, deemed profit: %.2f",
         items[3],
@@ -248,7 +239,7 @@ def parse_closed_lot(trade_data, items, offset, rate):
         items[5 + offset],
         items[8 + offset],
         realized,
-        deemed_profit,
+        deemed,
     )
     app.logger.info(
         "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, Selling price: %.2f, Gains/Losses: %.2f",
@@ -257,25 +248,26 @@ def parse_closed_lot(trade_data, items, offset, rate):
         date_without_time(trade_data["buy_date"]),
         date_without_time(trade_data["sell_date"]),
         total_sell_price,
-        min(realized, deemed_profit),
+        min(realized, deemed),
     )
-    return min(realized, deemed_profit), lot_quantity
+    return min(realized, deemed)
 
 
-def deemed_acquisition_cost(buy_date, sell_date, total_sell_price):
+def deemed_profit(buy_date, sell_date, total_sell_price):
     """If you have owned the shares you sell for less than 10 years, the deemed
     acquisition cost is 20% of the selling price of the shares.
     If you have owned the shares you sell for at least 10 years, the deemed
     acquisition cost is 40% of the selling price of the shares.
     """
-    multiplier = 0.2
+    multiplier = Decimal(0.8)
     if get_date(buy_date) <= add_years(get_date(sell_date), -10):
-        multiplier = 0.4
+        multiplier = Decimal(0.6)
     return multiplier * total_sell_price
 
 
 def calculate_prices_gains_losses(lines):
-    prices, gains, losses, offset = 0.0, 0.0, 0.0, 0
+    prices = gains = losses = Decimal(0)
+    offset = 0
     trade_data = {}
     for items in lines:
         items = tuple(items)
@@ -293,24 +285,20 @@ def calculate_prices_gains_losses(lines):
             trade_data = parse_trade(items, offset, rate)
             prices += trade_data["total_selling_price"]
         elif items[2] == "ClosedLot":
-            realized, lot_quantity = parse_closed_lot(trade_data, items, offset, rate)
+            realized = realized_from_closed_lot(trade_data, items, offset, rate)
             if realized > 0:
                 gains += realized
             else:
                 losses -= realized
-            trade_data["quantity"] += lot_quantity
-            if trade_data["quantity"] == 0:
-                app.logger.debug("Trade completed.")
-                trade_data = {}
     return prices, gains, losses
 
 
 def show_results(prices, gains, losses):
     if request.args.get("json") is not None:
         return {
-            "prices": round(prices, 2),
-            "gains": round(gains, 2),
-            "losses": round(losses, 2),
+            "prices": float(round(prices, 2)),
+            "gains": float(round(gains, 2)),
+            "losses": float(round(losses, 2)),
         }
     return render_template(
         "result.html",
@@ -354,7 +342,6 @@ def main_post():
         prices, gains, losses = calculate_prices_gains_losses(lines)
     except UnicodeDecodeError:
         abort(400, description="Input data not in UTF-8 text format.")
-
     return show_results(prices, gains, losses)
 
 
