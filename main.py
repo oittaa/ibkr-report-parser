@@ -73,6 +73,7 @@ class IBKRTrades:
                 if items[2] == "Trade":
                     self._trade_data = self.parse_trade(items)
                     self.prices += self._trade_data["total_selling_price"]
+                    self._closed_quantity = Decimal(0)
                 elif items[2] == "ClosedLot":
                     realized = self.realized_from_closed_lot(items)
                     if realized > 0:
@@ -171,6 +172,10 @@ class IBKRTrades:
             total_sell_price,
             min(realized, deemed),
         )
+        self._closed_quantity += lot_quantity
+        if self._closed_quantity + self._trade_data["quantity"] == Decimal(0):
+            app.logger.debug("Trade closed")
+            self._trade_data = {}
         return min(realized, deemed)
 
 
