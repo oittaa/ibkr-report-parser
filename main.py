@@ -6,14 +6,14 @@ from csv import reader
 from dataclasses import InitVar, dataclass
 from datetime import datetime, timedelta, date
 from decimal import Decimal
-from typing import Iterable
 from flask import Flask, abort, render_template, request
-from google.cloud import exceptions, storage
+from google.cloud import exceptions, storage  # type: ignore
 from io import BytesIO
 from json import dumps, loads
 from lzma import compress, decompress
 from os import getenv
 from re import match, sub
+from typing import Dict, Iterable, List, TypedDict
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import ZipFile
@@ -41,22 +41,33 @@ SAVED_RATES_FILE = "official_ecb_exchange_rates-{0}.json.xz"
 
 app = Flask(__name__)
 
-_cache = {}
+_cache: Dict[str, Dict[str, Dict[str, str]]] = {}
 _MAXCACHE = 5
+
+
+class TradeData(TypedDict, total=False):
+    fee: Decimal
+    quantity: Decimal
+    symbol: str
+    total_selling_price: Decimal
+    sell_date: str
+    sell_price: Decimal
+    buy_date: str
+    buy_price: Decimal
 
 
 @dataclass
 class IBKRTrades:
     lines: InitVar[Iterable] = None
-    prices: Decimal = 0
-    gains: Decimal = 0
-    losses: Decimal = 0
+    prices: Decimal = Decimal(0)
+    gains: Decimal = Decimal(0)
+    losses: Decimal = Decimal(0)
 
-    def __post_init__(self, lines):
+    def __post_init__(self, lines: Iterable) -> None:
         if lines is None:
             return
         self._offset = 0
-        self._trade_data = {}
+        self._trade_data = TradeData()
         try:
             for items in lines:
                 items = tuple(items)
@@ -71,7 +82,7 @@ class IBKRTrades:
                     continue
                 self._rate = eur_exchange_rate(items[4], items[6 + self._offset])
                 if items[2] == "Trade":
-                    self._trade_data = self.parse_trade(items)
+                    self.parse_trade(items)
                     self.prices += self._trade_data["total_selling_price"]
                     self._closed_quantity = Decimal(0)
                 elif items[2] == "ClosedLot":
@@ -83,17 +94,21 @@ class IBKRTrades:
         except UnicodeDecodeError:
             abort(400, description="Input data not in UTF-8 text format.")
 
-    def parse_trade(self, items):
-        trade_data = {
-            "fee": decimal_cleanup(items[11 + self._offset]) / self._rate,
-            "quantity": decimal_cleanup(items[8 + self._offset]),
-            "symbol": items[5 + self._offset],
-            "total_selling_price": Decimal(0),
-        }
+    def parse_trade(self, items: List[str]) -> None:
+        trade_data = TradeData(
+            fee=decimal_cleanup(items[11 + self._offset]) / self._rate,
+            quantity=decimal_cleanup(items[8 + self._offset]),
+            symbol=items[5 + self._offset],
+            total_selling_price=Decimal(0),
+            sell_date="",
+            sell_price=Decimal(0),
+            buy_date="",
+            buy_price=Decimal(0),
+        )
         date_str = items[6 + self._offset]
         price_per_share = decimal_cleanup(items[9 + self._offset]) / self._rate
         # Sold stocks have a negative value in the "Quantity" column, items[8 + offset]
-        if trade_data["quantity"] < 0:
+        if trade_data["quantity"] < Decimal(0):
             trade_data["total_selling_price"] = (
                 decimal_cleanup(items[10 + self._offset]) / self._rate
             )
@@ -112,9 +127,9 @@ class IBKRTrades:
             price_per_share,
             items[11 + self._offset],
         )
-        return trade_data
+        self._trade_data = trade_data
 
-    def realized_from_closed_lot(self, items):
+    def realized_from_closed_lot(self, items: List[str]) -> Decimal:
         if self._trade_data.get("symbol") != items[5 + self._offset]:
             error_msg = "Symbol mismatch! Trade: {}, ClosedLot: {}".format(
                 self._trade_data.get("symbol"), items[5 + self._offset]
@@ -132,8 +147,8 @@ class IBKRTrades:
         else:
             self._trade_data["buy_date"] = date_str
             self._trade_data["buy_price"] = price_per_share
-        for key in ("sell_date", "sell_price", "buy_date", "buy_price"):
-            if key not in self._trade_data:
+        for key in ("sell_date", "buy_date"):
+            if not self._trade_data.get(key):
                 error_msg = "Invalid data, missing '{}'".format(key)
                 app.logger.error(error_msg)
                 app.logger.debug(self._trade_data)
@@ -179,7 +194,7 @@ class IBKRTrades:
         return min(realized, deemed)
 
 
-def get_date(date_str):
+def get_date(date_str: str) -> date:
     for date_format in DATE_STR_FORMATS:
         try:
             return datetime.strptime(date_str, date_format).date()
@@ -190,7 +205,7 @@ def get_date(date_str):
     abort(400, description=error_msg)
 
 
-def add_years(d, years):
+def add_years(d: date, years: int) -> date:
     """Return a date that's `years` years after the date (or datetime)
     object `d`. Return the same calendar date (month and day) in the
     destination year, if it exists, otherwise use the previous day
@@ -203,15 +218,15 @@ def add_years(d, years):
         return d + (date(d.year + years, 3, 1) - date(d.year, 3, 1))
 
 
-def date_without_time(date_str):
+def date_without_time(date_str: str) -> str:
     return sub(r"(\d\d\d\d-\d\d-\d\d),? ([0-9:]+)", r"\1", date_str)
 
 
-def decimal_cleanup(number_str):
+def decimal_cleanup(number_str: str) -> Decimal:
     return Decimal(sub(r"[,\s]+", "", number_str))
 
 
-def extract_exchange_rates(rates_file):
+def extract_exchange_rates(rates_file: Iterable) -> Dict[str, Dict[str, str]]:
     rates = {}
     currencies = None
     for items in reader(iterdecode(rates_file, "utf-8")):
@@ -228,7 +243,7 @@ def extract_exchange_rates(rates_file):
     return rates
 
 
-def download_official_rates_ecb(url):
+def download_official_rates_ecb(url: str) -> Dict[str, Dict[str, str]]:
     retries = 0
     while True:
         if retries > MAX_HTTP_RETRIES:
@@ -251,7 +266,7 @@ def download_official_rates_ecb(url):
     return rates
 
 
-def get_exchange_rates(cron_job=False):
+def get_exchange_rates(cron_job=False) -> Dict[str, Dict[str, str]]:
     if BUCKET_ID:
         if getenv("STORAGE_EMULATOR_HOST"):
             client = storage.Client.create_anonymous_client()
@@ -279,7 +294,7 @@ def get_exchange_rates(cron_job=False):
     return rates
 
 
-def eur_exchange_rate(currency, date_str):
+def eur_exchange_rate(currency: str, date_str: str) -> Decimal:
     if currency == "EUR":
         return Decimal(1)
     cache_key = datetime.now().strftime(_DATE)
@@ -307,7 +322,7 @@ def eur_exchange_rate(currency, date_str):
     abort(400, description=error_msg)
 
 
-def deemed_profit(buy_date, sell_date, total_sell_price):
+def deemed_profit(buy_date: str, sell_date: str, total_sell_price: Decimal) -> Decimal:
     """If you have owned the shares you sell for less than 10 years, the deemed
     acquisition cost is 20% of the selling price of the shares.
     If you have owned the shares you sell for at least 10 years, the deemed
@@ -319,7 +334,7 @@ def deemed_profit(buy_date, sell_date, total_sell_price):
     return multiplier * total_sell_price
 
 
-def show_results(trades):
+def show_results(trades: IBKRTrades):
     if request.args.get("json") is not None:
         return {
             "prices": float(round(trades.prices, 2)),
