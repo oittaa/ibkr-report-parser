@@ -13,7 +13,7 @@ from json import dumps, loads
 from lzma import compress, decompress
 from os import getenv
 from re import match, sub
-from typing import Dict, Iterable, Tuple, TypedDict
+from typing import Dict, Iterable, List, Tuple, TypedDict
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import ZipFile
@@ -38,10 +38,11 @@ DATE_STR_FORMATS = (_DATE + ", %H:%M:%S", _DATE + " %H:%M:%S", _DATE)
 MAX_BACKTRACK_DAYS = 7
 MAX_HTTP_RETRIES = 5
 SAVED_RATES_FILE = "official_ecb_exchange_rates-{0}.json.xz"
+CurrencyDict = Dict[str, Dict[str, str]]
 
 app = Flask(__name__)
 
-_cache: Dict[str, Dict[str, Dict[str, str]]] = {}
+_cache: Dict[str, CurrencyDict] = {}
 _MAXCACHE = 5
 
 
@@ -58,7 +59,7 @@ class TradeData(TypedDict, total=False):
 
 @dataclass
 class IBKRTrades:
-    lines: InitVar[Iterable] = None
+    lines: InitVar[Iterable[List[str]]] = None
     prices: Decimal = Decimal(0)
     gains: Decimal = Decimal(0)
     losses: Decimal = Decimal(0)
@@ -222,7 +223,15 @@ def decimal_cleanup(number_str: str) -> Decimal:
     return Decimal(sub(r"[,\s]+", "", number_str))
 
 
-def extract_exchange_rates(rates_file: Iterable) -> Dict[str, Dict[str, str]]:
+def is_number(s: str) -> bool:
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
+def extract_exchange_rates(rates_file: Iterable[bytes]) -> CurrencyDict:
     rates = {}
     currencies = None
     for items in reader(iterdecode(rates_file, "utf-8")):
@@ -231,7 +240,7 @@ def extract_exchange_rates(rates_file: Iterable) -> Dict[str, Dict[str, str]]:
         elif currencies and match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
             date_rates = {}
             for key, val in enumerate(items):
-                if key == 0 or not currencies[key] or not val or val == "N/A":
+                if key == 0 or not currencies[key] or not is_number(val):
                     continue
                 date_rates[currencies[key]] = val
             if date_rates:
@@ -239,8 +248,9 @@ def extract_exchange_rates(rates_file: Iterable) -> Dict[str, Dict[str, str]]:
     return rates
 
 
-def download_official_rates_ecb(url: str) -> Dict[str, Dict[str, str]]:
+def download_official_rates_ecb(url: str) -> CurrencyDict:
     retries = 0
+    rates: CurrencyDict = {}
     while True:
         if retries > MAX_HTTP_RETRIES:
             raise ValueError(
@@ -257,12 +267,14 @@ def download_official_rates_ecb(url: str) -> Dict[str, Dict[str, str]]:
     with ZipFile(BytesIO(response.read())) as rates_zip:
         for filename in rates_zip.namelist():
             with rates_zip.open(filename) as rates_file:
-                rates = extract_exchange_rates(rates_file)
+                temp_rates = extract_exchange_rates(rates_file)
+                rates = {**rates, **temp_rates}
+                # TODO Python3.9+ "rates |= temp_rates"
     app.logger.debug("Parsed exchange rates from the retrieved data.")
     return rates
 
 
-def get_exchange_rates(cron_job=False) -> Dict[str, Dict[str, str]]:
+def get_exchange_rates(cron_job: bool = False) -> CurrencyDict:
     if BUCKET_ID:
         if getenv("STORAGE_EMULATOR_HOST"):
             client = storage.Client.create_anonymous_client()
