@@ -3,8 +3,10 @@
 import logging
 from codecs import iterdecode
 from csv import reader
+from dataclasses import InitVar, dataclass
 from datetime import datetime, timedelta, date
 from decimal import Decimal
+from typing import Iterable
 from flask import Flask, abort, render_template, request
 from google.cloud import exceptions, storage
 from io import BytesIO
@@ -41,6 +43,140 @@ app = Flask(__name__)
 
 _cache = {}
 _MAXCACHE = 5
+
+
+@dataclass
+class IBKRTrades:
+    lines: InitVar[Iterable] = None
+    prices: Decimal = 0
+    gains: Decimal = 0
+    losses: Decimal = 0
+
+    def __post_init__(self, lines):
+        if lines is None:
+            return
+        self._offset = 0
+        self._trade_data = {}
+        try:
+            for items in lines:
+                items = tuple(items)
+                self._offset = OFFSET_DICT.get(items, self._offset)
+                if not (
+                    len(items) == 15 + self._offset
+                    and items[0] == "Trades"
+                    and items[1] == "Data"
+                    and items[2] in ("Trade", "ClosedLot")
+                    and items[3] in ("Stocks", "Equity and Index Options")
+                ):
+                    continue
+                self._rate = eur_exchange_rate(items[4], items[6 + self._offset])
+                if items[2] == "Trade":
+                    self._trade_data = self.parse_trade(items)
+                    self.prices += self._trade_data["total_selling_price"]
+                    self._closed_quantity = Decimal(0)
+                elif items[2] == "ClosedLot":
+                    realized = self.realized_from_closed_lot(items)
+                    if realized > 0:
+                        self.gains += realized
+                    else:
+                        self.losses -= realized
+        except UnicodeDecodeError:
+            abort(400, description="Input data not in UTF-8 text format.")
+
+    def parse_trade(self, items):
+        trade_data = {
+            "fee": decimal_cleanup(items[11 + self._offset]) / self._rate,
+            "quantity": decimal_cleanup(items[8 + self._offset]),
+            "symbol": items[5 + self._offset],
+            "total_selling_price": Decimal(0),
+        }
+        date_str = items[6 + self._offset]
+        price_per_share = decimal_cleanup(items[9 + self._offset]) / self._rate
+        # Sold stocks have a negative value in the "Quantity" column, items[8 + offset]
+        if trade_data["quantity"] < 0:
+            trade_data["total_selling_price"] = (
+                decimal_cleanup(items[10 + self._offset]) / self._rate
+            )
+            trade_data["sell_date"] = date_str
+            trade_data["sell_price"] = price_per_share
+        else:
+            trade_data["buy_date"] = date_str
+            trade_data["buy_price"] = price_per_share
+        app.logger.debug(
+            "Trade %s %s: %s - quantity: %s, price: %s, per share EUR: %f, fee: %s",
+            items[3],
+            items[4],
+            items[5 + self._offset],
+            items[8 + self._offset],
+            items[10 + self._offset],
+            price_per_share,
+            items[11 + self._offset],
+        )
+        return trade_data
+
+    def realized_from_closed_lot(self, items):
+        if self._trade_data.get("symbol") != items[5 + self._offset]:
+            error_msg = "Symbol mismatch! Trade: {}, ClosedLot: {}".format(
+                self._trade_data.get("symbol"), items[5 + self._offset]
+            )
+            app.logger.error(error_msg)
+            app.logger.debug(self._trade_data)
+            app.logger.debug(items)
+            abort(400, description=error_msg)
+        date_str = items[6 + self._offset]
+        price_per_share = decimal_cleanup(items[9 + self._offset]) / self._rate
+        lot_quantity = decimal_cleanup(items[8 + self._offset])
+        if lot_quantity < 0:
+            self._trade_data["sell_date"] = date_str
+            self._trade_data["sell_price"] = price_per_share
+        else:
+            self._trade_data["buy_date"] = date_str
+            self._trade_data["buy_price"] = price_per_share
+        for key in ("sell_date", "sell_price", "buy_date", "buy_price"):
+            if key not in self._trade_data:
+                error_msg = "Invalid data, missing '{}'".format(key)
+                app.logger.error(error_msg)
+                app.logger.debug(self._trade_data)
+                abort(400, description=error_msg)
+        multiplier = 100 if items[3] == "Equity and Index Options" else 1
+        realized = abs(lot_quantity) * (
+            (
+                (self._trade_data["sell_price"] - self._trade_data["buy_price"])
+                * multiplier
+            )
+            + self._trade_data["fee"] / abs(self._trade_data["quantity"])
+        )
+        total_sell_price = (
+            self._trade_data["sell_price"] * multiplier * abs(lot_quantity)
+        )
+        deemed = deemed_profit(
+            self._trade_data["buy_date"],
+            self._trade_data["sell_date"],
+            total_sell_price,
+        )
+        app.logger.debug(
+            "ClosedLot %s %s: %s - quantity: %s, realized: %.2f, deemed profit: %.2f",
+            items[3],
+            items[4],
+            items[5 + self._offset],
+            items[8 + self._offset],
+            realized,
+            deemed,
+        )
+        app.logger.info(
+            "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, Selling price: %.2f, Gains/Losses: %.2f",
+            self._trade_data["symbol"],
+            abs(lot_quantity),
+            date_without_time(self._trade_data["buy_date"]),
+            date_without_time(self._trade_data["sell_date"]),
+            total_sell_price,
+            min(realized, deemed),
+        )
+        self._closed_quantity += lot_quantity
+        if self._closed_quantity + self._trade_data["quantity"] == Decimal(0):
+            app.logger.debug("Trade closed")
+            self._trade_data = {}
+        return min(realized, deemed)
 
 
 def get_date(date_str):
@@ -171,92 +307,6 @@ def eur_exchange_rate(currency, date_str):
     abort(400, description=error_msg)
 
 
-def parse_trade(items, offset, rate):
-    trade_data = {
-        "fee": decimal_cleanup(items[11 + offset]) / rate,
-        "quantity": decimal_cleanup(items[8 + offset]),
-        "symbol": items[5 + offset],
-        "total_selling_price": Decimal(0),
-    }
-    date_str = items[6 + offset]
-    price_per_share = decimal_cleanup(items[9 + offset]) / rate
-    # Sold stocks have a negative value in the "Quantity" column, items[8 + offset]
-    if trade_data["quantity"] < 0:
-        trade_data["total_selling_price"] = decimal_cleanup(items[10 + offset]) / rate
-        trade_data["sell_date"] = date_str
-        trade_data["sell_price"] = price_per_share
-    else:
-        trade_data["buy_date"] = date_str
-        trade_data["buy_price"] = price_per_share
-    app.logger.debug(
-        "Trade %s %s: %s - quantity: %s, price: %s, per share EUR: %f, fee: %s",
-        items[3],
-        items[4],
-        items[5 + offset],
-        items[8 + offset],
-        items[10 + offset],
-        price_per_share,
-        items[11 + offset],
-    )
-    return trade_data
-
-
-def realized_from_closed_lot(trade_data, items, offset, rate):
-    if trade_data.get("symbol") != items[5 + offset]:
-        error_msg = "Symbol mismatch! Trade: {}, ClosedLot: {}".format(
-            trade_data.get("symbol"), items[5 + offset]
-        )
-        app.logger.error(error_msg)
-        app.logger.debug(trade_data)
-        app.logger.debug(items)
-        abort(400, description=error_msg)
-    date_str = items[6 + offset]
-    price_per_share = decimal_cleanup(items[9 + offset]) / rate
-    lot_quantity = decimal_cleanup(items[8 + offset])
-    if lot_quantity < 0:
-        trade_data["sell_date"] = date_str
-        trade_data["sell_price"] = price_per_share
-    else:
-        trade_data["buy_date"] = date_str
-        trade_data["buy_price"] = price_per_share
-    for key in ("sell_date", "sell_price", "buy_date", "buy_price"):
-        if key not in trade_data:
-            error_msg = "Invalid data, missing '{}'".format(key)
-            app.logger.error(error_msg)
-            app.logger.debug(trade_data)
-            abort(400, description=error_msg)
-    multiplier = 100 if items[3] == "Equity and Index Options" else 1
-    realized = abs(lot_quantity) * (
-        ((trade_data["sell_price"] - trade_data["buy_price"]) * multiplier)
-        + trade_data["fee"] / abs(trade_data["quantity"])
-    )
-    total_sell_price = trade_data["sell_price"] * multiplier * abs(lot_quantity)
-    deemed = deemed_profit(
-        trade_data["buy_date"],
-        trade_data["sell_date"],
-        total_sell_price,
-    )
-    app.logger.debug(
-        "ClosedLot %s %s: %s - quantity: %s, realized: %.2f, deemed profit: %.2f",
-        items[3],
-        items[4],
-        items[5 + offset],
-        items[8 + offset],
-        realized,
-        deemed,
-    )
-    app.logger.info(
-        "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, Selling price: %.2f, Gains/Losses: %.2f",
-        trade_data["symbol"],
-        abs(lot_quantity),
-        date_without_time(trade_data["buy_date"]),
-        date_without_time(trade_data["sell_date"]),
-        total_sell_price,
-        min(realized, deemed),
-    )
-    return min(realized, deemed)
-
-
 def deemed_profit(buy_date, sell_date, total_sell_price):
     """If you have owned the shares you sell for less than 10 years, the deemed
     acquisition cost is 20% of the selling price of the shares.
@@ -269,47 +319,19 @@ def deemed_profit(buy_date, sell_date, total_sell_price):
     return multiplier * total_sell_price
 
 
-def calculate_prices_gains_losses(lines):
-    prices = gains = losses = Decimal(0)
-    offset = 0
-    trade_data = {}
-    for items in lines:
-        items = tuple(items)
-        offset = OFFSET_DICT.get(items, offset)
-        if not (
-            len(items) == 15 + offset
-            and items[0] == "Trades"
-            and items[1] == "Data"
-            and items[2] in ("Trade", "ClosedLot")
-            and items[3] in ("Stocks", "Equity and Index Options")
-        ):
-            continue
-        rate = eur_exchange_rate(items[4], items[6 + offset])
-        if items[2] == "Trade":
-            trade_data = parse_trade(items, offset, rate)
-            prices += trade_data["total_selling_price"]
-        elif items[2] == "ClosedLot":
-            realized = realized_from_closed_lot(trade_data, items, offset, rate)
-            if realized > 0:
-                gains += realized
-            else:
-                losses -= realized
-    return prices, gains, losses
-
-
-def show_results(prices, gains, losses):
+def show_results(trades):
     if request.args.get("json") is not None:
         return {
-            "prices": float(round(prices, 2)),
-            "gains": float(round(gains, 2)),
-            "losses": float(round(losses, 2)),
+            "prices": float(round(trades.prices, 2)),
+            "gains": float(round(trades.gains, 2)),
+            "losses": float(round(trades.losses, 2)),
         }
     return render_template(
         "result.html",
         title=TITLE,
-        prices=prices,
-        gains=gains,
-        losses=losses,
+        prices=trades.prices,
+        gains=trades.gains,
+        losses=trades.losses,
     )
 
 
@@ -341,12 +363,8 @@ def main_post():
     else:
         app.logger.setLevel(logging.WARNING)
     upload = request.files.get("file")
-    lines = reader(iterdecode(upload, "utf-8"))
-    try:
-        prices, gains, losses = calculate_prices_gains_losses(lines)
-    except UnicodeDecodeError:
-        abort(400, description="Input data not in UTF-8 text format.")
-    return show_results(prices, gains, losses)
+    trades = IBKRTrades(reader(iterdecode(upload, "utf-8")))
+    return show_results(trades)
 
 
 @app.route("/cron", methods=["GET"])

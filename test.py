@@ -9,6 +9,7 @@ TEST_BUCKET = "test"
 TEST_URL = "file://" + os.path.abspath(os.getcwd()) + "/test-data/eurofxref-hist.zip"
 
 
+@patch("main.BUCKET_ID", TEST_BUCKET)
 @patch("main.EXCHANGE_RATES_URL", TEST_URL)
 class SmokeTests(unittest.TestCase):
     @classmethod
@@ -32,7 +33,6 @@ class SmokeTests(unittest.TestCase):
         response = self.app.get("/")
         self.assertEqual(response.status_code, 200)
 
-    @patch("main.BUCKET_ID", TEST_BUCKET)
     def test_get_cron(self):
         response = self.app.get("/cron")
         self.assertEqual(response.status_code, 403)
@@ -141,18 +141,8 @@ class SmokeTests(unittest.TestCase):
 
     @patch("main._cache", {})
     @patch("main._MAXCACHE", 0)
-    @patch("main.BUCKET_ID", TEST_BUCKET)
     def test_caching_filled_from_cron(self):
         response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
-        self.assertEqual(response.status_code, 200)
-        data = {"file": open("test-data/data_single_account.csv", "rb")}
-        response = self.app.post("/?json", data=data)
-        self.assertEqual(response.status_code, 200)
-
-    @patch("main.BUCKET_ID", TEST_BUCKET)
-    def test_caching_from_previous_request(self):
-        data = {"file": open("test-data/data_single_account.csv", "rb")}
-        response = self.app.post("/?json", data=data)
         self.assertEqual(response.status_code, 200)
         data = {"file": open("test-data/data_single_account.csv", "rb")}
         response = self.app.post("/?json", data=data)
