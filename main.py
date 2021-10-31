@@ -13,7 +13,7 @@ from json import dumps, loads
 from lzma import compress, decompress
 from os import getenv
 from re import match, sub
-from typing import Dict, Iterable, List, TypedDict
+from typing import Dict, Iterable, Tuple, TypedDict
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import ZipFile
@@ -94,16 +94,12 @@ class IBKRTrades:
         except UnicodeDecodeError:
             abort(400, description="Input data not in UTF-8 text format.")
 
-    def parse_trade(self, items: List[str]) -> None:
+    def parse_trade(self, items: Tuple[str, ...]) -> None:
         trade_data = TradeData(
             fee=decimal_cleanup(items[11 + self._offset]) / self._rate,
             quantity=decimal_cleanup(items[8 + self._offset]),
             symbol=items[5 + self._offset],
             total_selling_price=Decimal(0),
-            sell_date="",
-            sell_price=Decimal(0),
-            buy_date="",
-            buy_price=Decimal(0),
         )
         date_str = items[6 + self._offset]
         price_per_share = decimal_cleanup(items[9 + self._offset]) / self._rate
@@ -129,7 +125,7 @@ class IBKRTrades:
         )
         self._trade_data = trade_data
 
-    def realized_from_closed_lot(self, items: List[str]) -> Decimal:
+    def realized_from_closed_lot(self, items: Tuple[str, ...]) -> Decimal:
         if self._trade_data.get("symbol") != items[5 + self._offset]:
             error_msg = "Symbol mismatch! Trade: {}, ClosedLot: {}".format(
                 self._trade_data.get("symbol"), items[5 + self._offset]
@@ -190,7 +186,7 @@ class IBKRTrades:
         self._closed_quantity += lot_quantity
         if self._closed_quantity + self._trade_data["quantity"] == Decimal(0):
             app.logger.debug("Trade closed")
-            self._trade_data = {}
+            self._trade_data = TradeData()
         return min(realized, deemed)
 
 
