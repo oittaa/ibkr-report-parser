@@ -12,13 +12,8 @@
 # below:
 .git
 .gitignore
+#!include:.gitignore
 
-# Python pycache:
-__pycache__/
-.pytest_cache/
-.coverage/
-.coverage
-coverage.xml
 # Ignored by the build system
 /setup.cfg
 .dockerignore
@@ -30,4 +25,3 @@ README.md
 requirements-dev.txt
 test.py
 test-data/
-.DS_Store
