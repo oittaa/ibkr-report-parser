@@ -46,7 +46,7 @@ _cache: Dict[str, CurrencyDict] = {}
 _MAXCACHE = 5
 
 
-class TradeData:
+class Trade:
     fee: Decimal = Decimal(0)
     quantity: Decimal = Decimal(0)
     closed_quantity = Decimal(0)
@@ -103,10 +103,8 @@ class TradeData:
             buy_date, buy_price = date_str, price_per_share
             sell_date, sell_price = self.sell_date, self.sell_price
         if not sell_date or not buy_date:
-            error_msg = (
-                "Invalid data, missing date. sell_date:'{}', buy_date:'{}'".format(
-                    sell_date, buy_date
-                )
+            error_msg = "Invalid data, missing date. symbol:'{}', sell_date:'{}', buy_date:'{}'".format(
+                self.symbol, sell_date, buy_date
             )
             app.logger.error(error_msg)
             abort(400, description=error_msg)
@@ -145,18 +143,21 @@ class TradeData:
         return min(realized, deemed)
 
 
-class IBKRTrades:
+class IBKRReport:
     prices: Decimal = Decimal(0)
     gains: Decimal = Decimal(0)
     losses: Decimal = Decimal(0)
 
-    def __init__(self, lines: Iterable[Tuple[str, ...]]) -> None:
-        line_number = offset = 0
-        trade_data = None
+    def __init__(self, file: Iterable[bytes] = None) -> None:
+        if file:
+            self.add_trades(file)
+
+    def add_trades(self, file: Iterable[bytes]) -> None:
+        offset = 0
+        trade = None
         try:
-            for items in lines:
-                line_number += 1
-                items = tuple(items)
+            for items_list in reader(iterdecode(file, "utf-8")):
+                items = tuple(items_list)
                 offset = _OFFSET_DICT.get(items, offset)
                 if not (
                     len(items) == 15 + offset
@@ -167,17 +168,12 @@ class IBKRTrades:
                 ):
                     continue
                 if items[2] == "Trade":
-                    trade_data = TradeData(items, offset)
-                    self.prices += trade_data.total_selling_price
+                    trade = Trade(items, offset)
+                    self.prices += trade.total_selling_price
                 elif items[2] == "ClosedLot":
-                    if not trade_data:
-                        abort(
-                            400,
-                            description="Line: {} - Tried to close a lot without trades.".format(
-                                line_number
-                            ),
-                        )
-                    realized = trade_data.realized_from_closed_lot(items, offset)
+                    if not trade:
+                        abort(400, description="Tried to close a lot without trades.")
+                    realized = trade.realized_from_closed_lot(items, offset)
                     if realized > 0:
                         self.gains += realized
                     else:
@@ -337,19 +333,19 @@ def deemed_profit(buy_date: str, sell_date: str, total_sell_price: Decimal) -> D
     return multiplier * total_sell_price
 
 
-def show_results(trades: IBKRTrades, json_format=False):
+def show_results(report: IBKRReport, json_format: bool = False):
     if json_format:
         return {
-            "prices": float(round(trades.prices, 2)),
-            "gains": float(round(trades.gains, 2)),
-            "losses": float(round(trades.losses, 2)),
+            "prices": float(round(report.prices, 2)),
+            "gains": float(round(report.gains, 2)),
+            "losses": float(round(report.losses, 2)),
         }
     return render_template(
         "result.html",
         title=TITLE,
-        prices=trades.prices,
-        gains=trades.gains,
-        losses=trades.losses,
+        prices=report.prices,
+        gains=report.gains,
+        losses=report.losses,
     )
 
 
@@ -380,10 +376,9 @@ def main_post():
         app.logger.setLevel(logging._nameToLevel[LOGGING_LEVEL.upper()])
     else:
         app.logger.setLevel(logging.WARNING)
-    upload = request.files.get("file")
-    trades = IBKRTrades(reader(iterdecode(upload, "utf-8")))
+    report = IBKRReport(request.files.get("file"))
     json_format = True if request.args.get("json") is not None else False
-    return show_results(trades=trades, json_format=json_format)
+    return show_results(report=report, json_format=json_format)
 
 
 @app.route("/cron", methods=["GET"])
