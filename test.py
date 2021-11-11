@@ -139,6 +139,28 @@ class SmokeTests(unittest.TestCase):
             data_json["error"], "400 Bad Request: Invalid date '20xx-08-23, 09:33:11'"
         )
 
+    def test_post_symbol_mismatch(self):
+        data = {"file": open("test-data/data_symbol_mismatch.csv", "rb")}
+        response = self.app.post("/?json", data=data)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.headers.get("Content-Type"), "application/json")
+        data_json = json.loads(response.data)
+        self.assertEqual(
+            data_json["error"],
+            "400 Bad Request: Symbol mismatch! Trade: UPST, ClosedLot: XXXX",
+        )
+
+    def test_post_wrong_quantities(self):
+        data = {"file": open("test-data/data_wrong_quantities.csv", "rb")}
+        response = self.app.post("/?json", data=data)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.headers.get("Content-Type"), "application/json")
+        data_json = json.loads(response.data)
+        self.assertEqual(
+            data_json["error"],
+            '400 Bad Request: Invalid data. "Trade" and "ClosedLot" quantities do not match. Symbol: UPST, Date: 2021-03-15',
+        )
+
     @patch("main._cache", {})
     @patch("main._MAXCACHE", 0)
     def test_caching_filled_from_cron(self):

@@ -3,6 +3,7 @@
 import logging
 from codecs import iterdecode
 from csv import reader
+from dataclasses import dataclass
 from datetime import datetime, timedelta, date
 from decimal import Decimal
 from flask import Flask, abort, render_template, request
@@ -12,7 +13,7 @@ from json import dumps, loads
 from lzma import compress, decompress
 from os import getenv
 from re import match, sub
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Iterable, Optional, Tuple
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import ZipFile
@@ -23,6 +24,11 @@ DEBUG = bool(getenv("DEBUG"))
 _DEFAULT_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip"
 EXCHANGE_RATES_URL = getenv("EXCHANGE_RATES_URL", _DEFAULT_URL)
 LOGGING_LEVEL = getenv("LOGGING_LEVEL", "INFO")
+
+MAX_BACKTRACK_DAYS = 7
+MAX_HTTP_RETRIES = 5
+SAVED_RATES_FILE = "official_ecb_exchange_rates-{0}.json.xz"
+
 _SINGLE_ACCOUNT = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,"
     "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
@@ -35,151 +41,152 @@ _OFFSET_DICT = {tuple(_SINGLE_ACCOUNT): 0, tuple(_MULTI_ACCOUNT): 1}
 _DATE = "%Y-%m-%d"
 _TIME = " %H:%M:%S"
 _DATE_STR_FORMATS = (_DATE + "," + _TIME, _DATE + _TIME, _DATE)
-MAX_BACKTRACK_DAYS = 7
-MAX_HTTP_RETRIES = 5
-SAVED_RATES_FILE = "official_ecb_exchange_rates-{0}.json.xz"
-CurrencyDict = Dict[str, Dict[str, str]]
 
 app = Flask(__name__)
+CurrencyDict = Dict[str, Dict[str, str]]
 
 _cache: Dict[str, CurrencyDict] = {}
 _MAXCACHE = 5
 
 
+@dataclass
+class TickerInfo:
+    symbol: str
+    date_str: str
+    rate: Decimal
+    price_per_share: Decimal
+    quantity: Decimal
+
+
 class Trade:
     fee: Decimal = Decimal(0)
-    quantity: Decimal = Decimal(0)
     closed_quantity = Decimal(0)
-    symbol: str = ""
-    rate: Decimal = Decimal(1)
     total_selling_price: Decimal = Decimal(0)
-    sell_date: str = ""
-    sell_price: Decimal = Decimal(0)
-    buy_date: str = ""
-    buy_price: Decimal = Decimal(0)
+    offset: int = 0
+    fields: TickerInfo
 
     def __init__(self, items: Tuple[str, ...], offset: int) -> None:
-        rate = eur_exchange_rate(items[4], items[6 + offset])
-        self.fee = decimal_cleanup(items[11 + offset]) / rate
-        self.quantity = decimal_cleanup(items[8 + offset])
-        self.symbol = items[5 + offset]
-        date_str = items[6 + offset]
-        price_per_share = decimal_cleanup(items[9 + offset]) / rate
+        self.offset = offset
+        self.fields = self.ticker_info(items)
+        self.fee = decimal_cleanup(items[11 + offset]) / self.fields.rate
         # Sold stocks have a negative value in the "Quantity" column, items[8 + offset]
-        if self.quantity < Decimal(0):
-            self.total_selling_price = decimal_cleanup(items[10 + offset]) / rate
-            self.sell_date = date_str
-            self.sell_price = price_per_share
-        else:
-            self.buy_date = date_str
-            self.buy_price = price_per_share
+        if self.fields.quantity < Decimal(0):
+            self.total_selling_price = (
+                decimal_cleanup(items[10 + offset]) / self.fields.rate
+            )
         app.logger.debug(
-            "Trade %s %s: %s - quantity: %s, price: %s, per share EUR: %f, fee: %s",
-            items[3],
-            items[4],
-            items[5 + offset],
-            items[8 + offset],
-            items[10 + offset],
-            price_per_share,
-            items[11 + offset],
+            'Trade: "%s" "%s" %.2f',
+            self.fields.date_str,
+            self.fields.symbol,
+            self.fields.quantity,
         )
 
-    def realized_from_closed_lot(self, items: Tuple[str, ...], offset: int) -> Decimal:
-        if self.symbol != items[5 + offset]:
+    def ticker_info(self, items: Tuple[str, ...]) -> TickerInfo:
+        symbol = items[5 + self.offset]
+        date_str = items[6 + self.offset]
+        rate = eur_exchange_rate(items[4], items[6 + self.offset])
+        price_per_share = decimal_cleanup(items[9 + self.offset]) / rate
+        quantity = decimal_cleanup(items[8 + self.offset])
+        return TickerInfo(symbol, date_str, rate, price_per_share, quantity)
+
+    def realized_from_closed_lot(self, items: Tuple[str, ...]) -> Decimal:
+        fields = self.ticker_info(items)
+        if self.fields.symbol != fields.symbol:
             error_msg = "Symbol mismatch! Trade: {}, ClosedLot: {}".format(
-                self.symbol, items[5 + offset]
+                self.fields.symbol, fields.symbol
             )
             app.logger.error(error_msg)
             app.logger.debug(items)
             abort(400, description=error_msg)
-        rate = eur_exchange_rate(items[4], items[6 + offset])
-        date_str = items[6 + offset]
-        price_per_share = decimal_cleanup(items[9 + offset]) / rate
-        lot_quantity = decimal_cleanup(items[8 + offset])
-        if lot_quantity < 0:
-            sell_date, sell_price = date_str, price_per_share
-            buy_date, buy_price = self.buy_date, self.buy_price
-        else:
-            buy_date, buy_price = date_str, price_per_share
-            sell_date, sell_price = self.sell_date, self.sell_price
-        if not sell_date or not buy_date:
-            error_msg = "Invalid data, missing date. symbol:'{}', sell_date:'{}', buy_date:'{}'".format(
-                self.symbol, sell_date, buy_date
+        if abs(self.fields.quantity + fields.quantity) > abs(self.fields.quantity):
+            error_msg = 'Invalid data. "Trade" and "ClosedLot" quantities do not match. Symbol: {}, Date: {}'.format(
+                fields.symbol, fields.date_str
             )
             app.logger.error(error_msg)
             abort(400, description=error_msg)
+        sell_date, sell_price = self.fields.date_str, self.fields.price_per_share
+        buy_date, buy_price = fields.date_str, fields.price_per_share
+        if fields.quantity < Decimal(0):
+            # Swap if closing a short position
+            sell_date, buy_date = buy_date, sell_date
+            sell_price, buy_price = buy_price, sell_price
         multiplier = 100 if items[3] == "Equity and Index Options" else 1
-        realized = abs(lot_quantity) * (sell_price - buy_price) * multiplier + abs(
-            lot_quantity
-        ) * self.fee / abs(self.quantity)
-
-        total_sell_price = sell_price * multiplier * abs(lot_quantity)
-        deemed = deemed_profit(
-            buy_date,
-            sell_date,
-            total_sell_price,
+        realized = (
+            abs(fields.quantity) * (sell_price - buy_price) * multiplier
+            - fields.quantity * self.fee / self.fields.quantity
         )
-        app.logger.debug(
-            "ClosedLot %s %s: %s - quantity: %s, realized: %.2f, deemed profit: %.2f",
-            items[3],
-            items[4],
-            items[5 + offset],
-            items[8 + offset],
+        total_sell_price = abs(fields.quantity) * sell_price * multiplier
+        realized = min(
             realized,
-            deemed,
+            deemed_profit(
+                buy_date,
+                sell_date,
+                total_sell_price,
+            ),
         )
         app.logger.info(
             "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, Selling price: %.2f, Gains/Losses: %.2f",
-            self.symbol,
-            abs(lot_quantity),
+            fields.symbol,
+            abs(fields.quantity),
             date_without_time(buy_date),
             date_without_time(sell_date),
             total_sell_price,
-            min(realized, deemed),
+            realized,
         )
-        self.closed_quantity += lot_quantity
-        if self.closed_quantity + self.quantity == Decimal(0):
-            app.logger.debug("Trade closed")
-        return min(realized, deemed)
+        self.closed_quantity += fields.quantity
+        if self.closed_quantity + self.fields.quantity == Decimal(0):
+            app.logger.debug("All lots closed")
+        return realized
 
 
 class IBKRReport:
     prices: Decimal = Decimal(0)
     gains: Decimal = Decimal(0)
     losses: Decimal = Decimal(0)
+    _offset: int = 0
+    _trade: Optional[Trade] = None
 
     def __init__(self, file: Iterable[bytes] = None) -> None:
         if file:
             self.add_trades(file)
 
     def add_trades(self, file: Iterable[bytes]) -> None:
-        offset = 0
-        trade = None
         try:
             for items_list in reader(iterdecode(file, "utf-8")):
                 items = tuple(items_list)
-                offset = _OFFSET_DICT.get(items, offset)
-                if not (
-                    len(items) == 15 + offset
-                    and items[0] == "Trades"
-                    and items[1] == "Data"
-                    and items[2] in ("Trade", "ClosedLot")
-                    and items[3] in ("Stocks", "Equity and Index Options")
-                ):
+                offset = _OFFSET_DICT.get(items)
+                if offset is not None:
+                    self._offset = offset
+                    self._trade = None
                     continue
-                if items[2] == "Trade":
-                    trade = Trade(items, offset)
-                    self.prices += trade.total_selling_price
-                elif items[2] == "ClosedLot":
-                    if not trade:
-                        abort(400, description="Tried to close a lot without trades.")
-                    realized = trade.realized_from_closed_lot(items, offset)
-                    if realized > 0:
-                        self.gains += realized
-                    else:
-                        self.losses -= realized
+                if self.is_stock_or_options_trade(items):
+                    self.handle_trade(items)
         except UnicodeDecodeError:
             abort(400, description="Input data not in UTF-8 text format.")
+
+    def is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
+        if (
+            len(items) == 15 + self._offset
+            and items[0] == "Trades"
+            and items[1] == "Data"
+            and items[2] in ("Trade", "ClosedLot")
+            and items[3] in ("Stocks", "Equity and Index Options")
+        ):
+            return True
+        return False
+
+    def handle_trade(self, items: Tuple[str, ...]) -> None:
+        if items[2] == "Trade":
+            self._trade = Trade(items, self._offset)
+            self.prices += self._trade.total_selling_price
+        elif items[2] == "ClosedLot":
+            if not self._trade:
+                abort(400, description="Tried to close a lot without trades.")
+            realized = self._trade.realized_from_closed_lot(items)
+            if realized > 0:
+                self.gains += realized
+            else:
+                self.losses -= realized
 
 
 def get_date(date_str: str) -> date:
