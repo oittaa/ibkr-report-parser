@@ -1,0 +1,5 @@
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code
+Trades,Data,Order,Stocks,USD,UPST,"2021-08-23, 09:33:11",-,-50,199.64,9982,-1.0568582,-3043,6937.943142,C
+Trades,Data,Trade,Stocks,USD,UPST,"2021-08-23, 09:33:11",IBKRATS,-50,199.64,9982,-1.0568582,-3043,6937.943142,C
+Trades,Data,ClosedLot,Stocks,USD,UPST,2021-03-15,,-50,60.86,,,3043,6937.943142,ST
+Trades,SubTotal,,Stocks,USD,UPST,,,-50,,9982,-1.0568582,-3043,6937.943142,
