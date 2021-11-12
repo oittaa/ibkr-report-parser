@@ -7,7 +7,7 @@ from csv import reader
 from dataclasses import dataclass
 from datetime import datetime, timedelta, date
 from decimal import Decimal
-from flask import Flask, abort, render_template, request
+from flask import Flask, abort, make_response, render_template, request
 from google.cloud import exceptions, storage  # type: ignore
 from hashlib import sha384
 from io import BytesIO
@@ -115,8 +115,8 @@ class Trade:
                 fields.date_str, self.fields.symbol, fields.symbol
             )
         elif abs(self.fields.quantity + fields.quantity) > abs(self.fields.quantity):
-            error_msg = 'Invalid data. "Trade" and "ClosedLot" quantities do not match. Symbol: {}, Date: {}'.format(
-                fields.symbol, fields.date_str
+            error_msg = 'Invalid data. "Trade" and "ClosedLot" quantities do not match. Date: {}, Symbol: {}'.format(
+                fields.date_str, fields.symbol
             )
         if error_msg:
             app.logger.error(error_msg)
@@ -445,7 +445,9 @@ def bad_request(e):
 
 @app.route("/", methods=["GET"])
 def main_get():
-    return render_template("index.html", title=TITLE, sri=get_sri())
+    resp = make_response(render_template("index.html", title=TITLE, sri=get_sri()))
+    resp.cache_control.max_age = 600
+    return resp
 
 
 @app.route("/", methods=["POST"])
