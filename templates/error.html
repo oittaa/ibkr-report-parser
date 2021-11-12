@@ -1,15 +1,9 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>{{ title }} - ERROR</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}?{{ sri.css|urlencode }}" integrity="{{ sri.css }}" />
-</head>
-<body>
-<div id="result">
-  <h1>{{ title }} - ERROR</h1>
-  <h2>{{ message }}</h2>
-  <p><a href="{{ url_for('main_get') }}">Back</a></p>
-</div>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - ERROR{% endblock %}
+
+{% block content %}
+    <h1>{{ title }} - ERROR</h1>
+    <h2>{{ message }}</h2>
+    <p><a href="{{ url_for('main_get') }}">Back</a></p>
+{%- endblock %}

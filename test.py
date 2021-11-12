@@ -158,7 +158,7 @@ class SmokeTests(unittest.TestCase):
         data_json = json.loads(response.data)
         self.assertEqual(
             data_json["error"],
-            '400 Bad Request: Invalid data. "Trade" and "ClosedLot" quantities do not match. Symbol: UPST, Date: 2021-03-15',
+            '400 Bad Request: Invalid data. "Trade" and "ClosedLot" quantities do not match. Date: 2021-03-15, Symbol: UPST',
         )
 
     @patch("main._cache", {})

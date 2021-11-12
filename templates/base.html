@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}?{{ sri.css|urlencode }}" integrity="{{ sri.css }}" />
+</head>
+
+<body>
+  <div id="content">{% block content %}{% endblock %}
+  </div>
+</body>
+</html>

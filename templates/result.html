@@ -1,44 +1,44 @@
 {% extends "index.html" %}
-{% block result %}
-  <h2>3. Fill out the forms at <a href ="https://vero.fi/">MyTax (OmaVero)</a></h2>
-  <h3>Profit from selling securities / Arvopaperien myyntivoitot</h3>
-  <p>From <strong>Filing method</strong> / <strong>Ilmoittamistapa</strong> choose <strong>I am giving the details on securities in an attachment file</strong> / <strong>Ilmoitan arvopaperien tiedot liitetiedostossa</strong> and fill out the following fields.
-  <table class="styled-table">
-    <thead>
-      <tr>
-        <th>Field</th>
-        <th>Value</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td>Total selling prices / Luovutushinnat yhteensä</td><td>{{ "%.2f"|format(prices|round(2)) }}</td></tr>
-      <tr><td>Total capital gains / Luovutusvoitot yhteensä</td><td>{{ "%.2f"|format(gains|round(2)) }}</td></tr>
-      <tr><td>Total capital losses / Luovutustappiot yhteensä</td><td>{{ "%.2f"|format(losses|round(2)) }}</td></tr>
-    </tbody>
-  </table>
-  <h3>Details</h3>
-  <table class="styled-table">
-    <thead>
-      <tr>
-        <th>Symbol</th>
-        <th>Quantity</th>
-        <th>Buy Date</th>
-        <th>Sell Date</th>
-        <th>Selling Price</th>
-        <th>Gains / Losses</th>
-      </tr>
-    </thead>
-    <tbody>
-{% for item in details %}
-      <tr>
-          <td>{{item.symbol}}</td>
-          <td>{{item.quantity}}</td>
-          <td>{{item.buy_date}}</td>
-          <td>{{item.sell_date}}</td>
-          <td>{{"%.2f"|format(item.price|round(2))}}</td>
-          <td>{{"%.2f"|format(item.realized|round(2))}}</td>
-      </tr>
-{% endfor %}
-    </tbody>
-</table>
-{% endblock %}
+{% block result -%}
+    <h2 id="result">3. Fill out the forms at <a href ="https://vero.fi/">vero.fi</a></h2>
+    <h3>Profit from selling securities / Arvopaperien myyntivoitot</h3>
+    <p>From <strong>Filing method</strong> / <strong>Ilmoittamistapa</strong> choose <strong>I am giving the details on securities in an attachment file</strong> / <strong>Ilmoitan arvopaperien tiedot liitetiedostossa</strong> and fill out the following fields.
+    <table class="styled-table">
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Total selling prices / Luovutushinnat yhteensä</td><td>{{ "%.2f"|format(prices|round(2)) }}</td></tr>
+        <tr><td>Total capital gains / Luovutusvoitot yhteensä</td><td>{{ "%.2f"|format(gains|round(2)) }}</td></tr>
+        <tr><td>Total capital losses / Luovutustappiot yhteensä</td><td>{{ "%.2f"|format(losses|round(2)) }}</td></tr>
+      </tbody>
+    </table>
+    <h3>Details</h3>
+    <table class="styled-table">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Quantity</th>
+          <th>Buy Date</th>
+          <th>Sell Date</th>
+          <th>Selling Price</th>
+          <th>Gains / Losses</th>
+        </tr>
+      </thead>
+      <tbody>
+{%- for item in details %}
+        <tr>
+            <td>{{item.symbol}}</td>
+            <td>{{item.quantity}}</td>
+            <td>{{item.buy_date}}</td>
+            <td>{{item.sell_date}}</td>
+            <td>{{"%.2f"|format(item.price|round(2))}}</td>
+            <td>{{"%.2f"|format(item.realized|round(2))}}</td>
+        </tr>
+{%- endfor %}
+      </tbody>
+    </table>
+{%- endblock %}

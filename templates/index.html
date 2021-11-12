@@ -1,14 +1,8 @@
-<!doctype html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-  <meta charset="utf-8">
-  <title>{{ title }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}?{{ sri.css|urlencode }}" integrity="{{ sri.css }}" />
-</head>
+{% block title %}{{ title }}{% endblock %}
 
-<body>
-  <div>
+{% block content %}
     <h1>{{ title }}</h1>
     <p><a href="https://github.com/oittaa/ibkr-report-parser">Source code at GitHub</a></p>
     <h2>1. Download a CSV trades report from Interactive Brokers.</h2>
@@ -51,10 +45,8 @@
     </table>
     <h2>2. Upload the CSV file.</h2>
     <form method="post" id="form" action="{{ url_for('main_post') }}#result" enctype="multipart/form-data">
-      <label class="button-4"><input type="file" id="file" name="file">Choose file</label>
+      <label class="file-button"><input type="file" id="file" name="file">Choose file</label>
     </form>
-  </div>
-  <div id="result">{% block result %}{% endblock %}</div>
-  <script src="{{ url_for('static', filename='js/main.js') }}?{{ sri.js|urlencode }}" integrity="{{ sri.js }}"></script>
-</body>
-</html>
+{%- block result %}{% endblock %}
+    <script src="{{ url_for('static', filename='js/main.js') }}?{{ sri.js|urlencode }}" integrity="{{ sri.js }}"></script>
+{%- endblock %}
