@@ -122,15 +122,20 @@ class Trade:
             app.logger.error(error_msg)
             app.logger.debug(items)
             abort(400, description=error_msg)
-        sell_date, sell_price = self.fields.date_str, self.fields.price_per_share
-        buy_date, buy_price = fields.date_str, fields.price_per_share
+
+        sell_date = date_without_time(self.fields.date_str)
+        sell_price = self.fields.price_per_share
+        buy_date = date_without_time(fields.date_str)
+        buy_price = fields.price_per_share
+
+        # Swap if closing a short position
         if fields.quantity < Decimal(0):
-            # Swap if closing a short position
             sell_date, buy_date = buy_date, sell_date
             sell_price, buy_price = buy_price, sell_price
 
         # One option represents 100 shares of the underlying stock
         multiplier = 100 if items[3] == "Equity and Index Options" else 1
+
         realized = (
             abs(fields.quantity) * (sell_price - buy_price) * multiplier
             - fields.quantity * self.fee / self.fields.quantity
@@ -139,17 +144,17 @@ class Trade:
         realized = min(
             realized,
             deemed_profit(
-                buy_date,
-                sell_date,
-                total_sell_price,
+                buy_date=buy_date,
+                sell_date=sell_date,
+                total_sell_price=total_sell_price,
             ),
         )
         app.logger.info(
             "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, Selling price: %.2f, Gains/Losses: %.2f",
             fields.symbol,
             abs(fields.quantity),
-            date_without_time(buy_date),
-            date_without_time(sell_date),
+            buy_date,
+            sell_date,
             total_sell_price,
             realized,
         )
@@ -157,12 +162,12 @@ class Trade:
         if self.closed_quantity + self.fields.quantity == Decimal(0):
             app.logger.debug("All lots closed")
         return TradeDetails(
-            fields.symbol,
-            abs(fields.quantity),
-            date_without_time(buy_date),
-            date_without_time(sell_date),
-            total_sell_price,
-            realized,
+            symbol=fields.symbol,
+            quantity=abs(fields.quantity),
+            buy_date=buy_date,
+            sell_date=sell_date,
+            price=total_sell_price,
+            realized=realized,
         )
 
 
@@ -220,6 +225,7 @@ class IBKRReport:
 
 
 def get_date(date_str: str) -> date:
+    """Converts a string formatted date to a date object."""
     for date_format in _DATE_STR_FORMATS:
         try:
             return datetime.strptime(date_str, date_format).date()
@@ -235,7 +241,6 @@ def add_years(d: date, years: int) -> date:
     object `d`. Return the same calendar date (month and day) in the
     destination year, if it exists, otherwise use the previous day
     (thus changing February 29 to February 28).
-
     """
     try:
         return d.replace(year=d.year + years)
