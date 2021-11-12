@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
+from base64 import b64encode
 from codecs import iterdecode
 from csv import reader
 from dataclasses import dataclass
@@ -8,12 +9,13 @@ from datetime import datetime, timedelta, date
 from decimal import Decimal
 from flask import Flask, abort, render_template, request
 from google.cloud import exceptions, storage  # type: ignore
+from hashlib import sha384
 from io import BytesIO
 from json import dumps, loads
 from lzma import compress, decompress
-from os import getenv
+from os import getenv, path
 from re import match, sub
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import ZipFile
@@ -28,6 +30,7 @@ LOGGING_LEVEL = getenv("LOGGING_LEVEL", "INFO")
 MAX_BACKTRACK_DAYS = 7
 MAX_HTTP_RETRIES = 5
 SAVED_RATES_FILE = "official_ecb_exchange_rates-{0}.json.xz"
+CurrencyDict = Dict[str, Dict[str, str]]
 
 _SINGLE_ACCOUNT = (
     "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,"
@@ -43,10 +46,15 @@ _TIME = " %H:%M:%S"
 _DATE_STR_FORMATS = (_DATE + "," + _TIME, _DATE + _TIME, _DATE)
 
 app = Flask(__name__)
-CurrencyDict = Dict[str, Dict[str, str]]
 
-_cache: Dict[str, CurrencyDict] = {}
+_cache: Dict = {}
 _MAXCACHE = 5
+
+
+@dataclass
+class SRI:
+    css: str
+    js: str
 
 
 @dataclass
@@ -56,6 +64,16 @@ class TickerInfo:
     rate: Decimal
     price_per_share: Decimal
     quantity: Decimal
+
+
+@dataclass
+class TradeDetails:
+    symbol: str
+    quantity: Decimal
+    buy_date: str
+    sell_date: str
+    price: Decimal
+    realized: Decimal
 
 
 class Trade:
@@ -89,20 +107,20 @@ class Trade:
         quantity = decimal_cleanup(items[8 + self.offset])
         return TickerInfo(symbol, date_str, rate, price_per_share, quantity)
 
-    def realized_from_closed_lot(self, items: Tuple[str, ...]) -> Decimal:
+    def details_from_closed_lot(self, items: Tuple[str, ...]) -> TradeDetails:
+        error_msg = ""
         fields = self.ticker_info(items)
         if self.fields.symbol != fields.symbol:
-            error_msg = "Symbol mismatch! Trade: {}, ClosedLot: {}".format(
-                self.fields.symbol, fields.symbol
+            error_msg = "Symbol mismatch! Date: {}, Trade: {}, ClosedLot: {}".format(
+                fields.date_str, self.fields.symbol, fields.symbol
             )
-            app.logger.error(error_msg)
-            app.logger.debug(items)
-            abort(400, description=error_msg)
-        if abs(self.fields.quantity + fields.quantity) > abs(self.fields.quantity):
+        elif abs(self.fields.quantity + fields.quantity) > abs(self.fields.quantity):
             error_msg = 'Invalid data. "Trade" and "ClosedLot" quantities do not match. Symbol: {}, Date: {}'.format(
                 fields.symbol, fields.date_str
             )
+        if error_msg:
             app.logger.error(error_msg)
+            app.logger.debug(items)
             abort(400, description=error_msg)
         sell_date, sell_price = self.fields.date_str, self.fields.price_per_share
         buy_date, buy_price = fields.date_str, fields.price_per_share
@@ -110,6 +128,8 @@ class Trade:
             # Swap if closing a short position
             sell_date, buy_date = buy_date, sell_date
             sell_price, buy_price = buy_price, sell_price
+
+        # One option represents 100 shares of the underlying stock
         multiplier = 100 if items[3] == "Equity and Index Options" else 1
         realized = (
             abs(fields.quantity) * (sell_price - buy_price) * multiplier
@@ -136,17 +156,26 @@ class Trade:
         self.closed_quantity += fields.quantity
         if self.closed_quantity + self.fields.quantity == Decimal(0):
             app.logger.debug("All lots closed")
-        return realized
+        return TradeDetails(
+            fields.symbol,
+            abs(fields.quantity),
+            date_without_time(buy_date),
+            date_without_time(sell_date),
+            total_sell_price,
+            realized,
+        )
 
 
 class IBKRReport:
     prices: Decimal = Decimal(0)
     gains: Decimal = Decimal(0)
     losses: Decimal = Decimal(0)
+    details: List[TradeDetails]
     _offset: int = 0
     _trade: Optional[Trade] = None
 
     def __init__(self, file: Iterable[bytes] = None) -> None:
+        self.details = []
         if file:
             self.add_trades(file)
 
@@ -182,11 +211,12 @@ class IBKRReport:
         elif items[2] == "ClosedLot":
             if not self._trade:
                 abort(400, description="Tried to close a lot without trades.")
-            realized = self._trade.realized_from_closed_lot(items)
-            if realized > 0:
-                self.gains += realized
+            details = self._trade.details_from_closed_lot(items)
+            if details.realized > 0:
+                self.gains += details.realized
             else:
-                self.losses -= realized
+                self.losses -= details.realized
+            self.details.append(details)
 
 
 def get_date(date_str: str) -> date:
@@ -340,12 +370,47 @@ def deemed_profit(buy_date: str, sell_date: str, total_sell_price: Decimal) -> D
     return multiplier * total_sell_price
 
 
+def get_sri() -> SRI:
+    """Calculate SRI for CSS and Javascript files."""
+    try:
+        sri = _cache["sri"]
+    except KeyError:
+        sri = SRI(
+            css=calculate_sri_on_file(
+                path.join(app.root_path, "static", "css", "main.css")
+            ),
+            js=calculate_sri_on_file(
+                path.join(app.root_path, "static", "js", "main.js")
+            ),
+        )
+        _cache["sri"] = sri
+    return sri
+
+
+def calculate_sri_on_file(filename: str) -> str:
+    """Calculate SRI string."""
+    hash_digest = hash_sum(filename, sha384()).digest()
+    hash_base64 = b64encode(hash_digest).decode()
+    return "sha384-{}".format(hash_base64)
+
+
+def hash_sum(filename, hash_func):
+    """Compute message digest from a file."""
+    byte_array = bytearray(128 * 1024)
+    memory_view = memoryview(byte_array)
+    with open(filename, "rb", buffering=0) as file:
+        for block in iter(lambda: file.readinto(memory_view), 0):
+            hash_func.update(memory_view[:block])
+    return hash_func
+
+
 def show_results(report: IBKRReport, json_format: bool = False):
     if json_format:
         return {
             "prices": float(round(report.prices, 2)),
             "gains": float(round(report.gains, 2)),
             "losses": float(round(report.losses, 2)),
+            "details": report.details,
         }
     return render_template(
         "result.html",
@@ -353,6 +418,8 @@ def show_results(report: IBKRReport, json_format: bool = False):
         prices=report.prices,
         gains=report.gains,
         losses=report.losses,
+        details=report.details,
+        sri=get_sri(),
     )
 
 
@@ -365,6 +432,7 @@ def bad_request(e):
             "error.html",
             title=TITLE,
             message=str(e),
+            sri=get_sri(),
         ),
         400,
     )
@@ -372,7 +440,7 @@ def bad_request(e):
 
 @app.route("/", methods=["GET"])
 def main_get():
-    return render_template("index.html", title=TITLE)
+    return render_template("index.html", title=TITLE, sri=get_sri())
 
 
 @app.route("/", methods=["POST"])
