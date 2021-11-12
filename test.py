@@ -147,7 +147,7 @@ class SmokeTests(unittest.TestCase):
         data_json = json.loads(response.data)
         self.assertEqual(
             data_json["error"],
-            "400 Bad Request: Symbol mismatch! Trade: UPST, ClosedLot: XXXX",
+            "400 Bad Request: Symbol mismatch! Date: 2021-03-15, Trade: UPST, ClosedLot: XXXX",
         )
 
     def test_post_wrong_quantities(self):
