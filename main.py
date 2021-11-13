@@ -225,7 +225,7 @@ class IBKRReport:
             abort(400, description="Input data not in UTF-8 text format.")
 
     def _is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
-        """Checks whether the current row is a trade or not."""
+        """Checks whether the current row is part of a trade or not."""
         if (
             len(items) == 15 + self._offset
             and items[0] == "Trades"
@@ -374,7 +374,7 @@ def get_exchange_rates(cron_job: bool = False) -> CurrencyDict:
 
 
 def eur_exchange_rate(currency: str, date_str: str) -> Decimal:
-    """Exchange rate on a given day."""
+    """Currency's exchange rate on a given day."""
     if currency == "EUR":
         return Decimal(1)
     cache_key = datetime.now().strftime(_DATE)
