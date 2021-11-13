@@ -92,15 +92,18 @@ class TradeDetails:
 
 
 class Trade:
+    """Trade which might be related to several ClosedLot rows."""
+
     fee: Decimal = Decimal(0)
-    closed_quantity = Decimal(0)
+    closed_quantity: Decimal = Decimal(0)
     total_selling_price: Decimal = Decimal(0)
     offset: int = 0
     fields: TickerInfo
 
     def __init__(self, items: Tuple[str, ...], offset: int) -> None:
+        """Initializes the Trade and calculates the total selling price from it."""
         self.offset = offset
-        self.fields = self.ticker_info(items)
+        self.fields = self._ticker_info(items)
         self.fee = decimal_cleanup(items[11 + offset]) / self.fields.rate
         # Sold stocks have a negative value in the "Quantity" column, items[8 + offset]
         if self.fields.quantity < Decimal(0):
@@ -114,17 +117,20 @@ class Trade:
             self.fields.quantity,
         )
 
-    def ticker_info(self, items: Tuple[str, ...]) -> TickerInfo:
+    def _ticker_info(self, items: Tuple[str, ...]) -> TickerInfo:
         symbol = items[5 + self.offset]
         date_str = items[6 + self.offset]
-        rate = eur_exchange_rate(items[4], items[6 + self.offset])
+        rate = eur_exchange_rate(currency=items[4], date_str=items[6 + self.offset])
         price_per_share = decimal_cleanup(items[9 + self.offset]) / rate
         quantity = decimal_cleanup(items[8 + self.offset])
         return TickerInfo(symbol, date_str, rate, price_per_share, quantity)
 
     def details_from_closed_lot(self, items: Tuple[str, ...]) -> TradeDetails:
+        """Most importantly calculates the realized gains or losses from the ClosedLot
+        related to the Trade.
+        """
         error_msg = ""
-        fields = self.ticker_info(items)
+        fields = self._ticker_info(items)
         if self.fields.symbol != fields.symbol:
             error_msg = "Symbol mismatch! Date: {}, Trade: {}, ClosedLot: {}".format(
                 fields.date_str, self.fields.symbol, fields.symbol
@@ -187,6 +193,10 @@ class Trade:
 
 
 class IBKRReport:
+    """Total selling prices, total capital gains, and total capital losses
+    calculated from the CSV files.
+    """
+
     prices: Decimal = Decimal(0)
     gains: Decimal = Decimal(0)
     losses: Decimal = Decimal(0)
@@ -200,6 +210,7 @@ class IBKRReport:
             self.add_trades(file)
 
     def add_trades(self, file: Iterable[bytes]) -> None:
+        """Adds trades from a CSV formatted report file."""
         try:
             for items_list in reader(iterdecode(file, "utf-8")):
                 items = tuple(items_list)
@@ -208,12 +219,13 @@ class IBKRReport:
                     self._offset = offset
                     self._trade = None
                     continue
-                if self.is_stock_or_options_trade(items):
-                    self.handle_trade(items)
+                if self._is_stock_or_options_trade(items):
+                    self._handle_trade(items)
         except UnicodeDecodeError:
             abort(400, description="Input data not in UTF-8 text format.")
 
-    def is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
+    def _is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
+        """Checks whether the current row is part of a trade or not."""
         if (
             len(items) == 15 + self._offset
             and items[0] == "Trades"
@@ -224,7 +236,8 @@ class IBKRReport:
             return True
         return False
 
-    def handle_trade(self, items: Tuple[str, ...]) -> None:
+    def _handle_trade(self, items: Tuple[str, ...]) -> None:
+        """Parses prices, gains, and losses from trades."""
         if items[2] == "Trade":
             self._trade = Trade(items, self._offset)
             self.prices += self._trade.total_selling_price
@@ -279,7 +292,10 @@ def is_number(s: str) -> bool:
         return False
 
 
-def extract_exchange_rates(rates_file: Iterable[bytes]) -> CurrencyDict:
+def build_exchange_rate_dictionary(rates_file: Iterable[bytes]) -> CurrencyDict:
+    """Builds the dictionary for the exchange rates from the downloaded CSV file.
+    {"2015-01-20": {"USD": "1.1579", ...}, ...}
+    """
     rates = {}
     currencies = None
     for items in reader(iterdecode(rates_file, "utf-8")):
@@ -297,6 +313,9 @@ def extract_exchange_rates(rates_file: Iterable[bytes]) -> CurrencyDict:
 
 
 def download_official_rates_ecb(url: str) -> CurrencyDict:
+    """Downloads the official currency exchange rates from European Central Bank
+    and builds a new exchange rate dictionary from it.
+    """
     retries = 0
     rates: CurrencyDict = {}
     while True:
@@ -315,7 +334,7 @@ def download_official_rates_ecb(url: str) -> CurrencyDict:
     with ZipFile(BytesIO(response.read())) as rates_zip:
         for filename in rates_zip.namelist():
             with rates_zip.open(filename) as rates_file:
-                temp_rates = extract_exchange_rates(rates_file)
+                temp_rates = build_exchange_rate_dictionary(rates_file)
                 rates = {**rates, **temp_rates}
                 # TODO Python3.9+ "rates |= temp_rates"
     app.logger.debug("Parsed exchange rates from the retrieved data.")
@@ -323,6 +342,10 @@ def download_official_rates_ecb(url: str) -> CurrencyDict:
 
 
 def get_exchange_rates(cron_job: bool = False) -> CurrencyDict:
+    """Tries to fetch a previously built exchange rate dictionary from a Google Cloud
+    Storage bucket. If that's not available, downloads the official exchange rates from
+    European Central Bank and builds a new dictionary from it.
+    """
     if BUCKET_ID:
         if getenv("STORAGE_EMULATOR_HOST"):
             client = storage.Client.create_anonymous_client()
@@ -351,6 +374,7 @@ def get_exchange_rates(cron_job: bool = False) -> CurrencyDict:
 
 
 def eur_exchange_rate(currency: str, date_str: str) -> Decimal:
+    """Currency's exchange rate on a given day."""
     if currency == "EUR":
         return Decimal(1)
     cache_key = datetime.now().strftime(_DATE)
@@ -391,7 +415,7 @@ def deemed_profit(buy_date: str, sell_date: str, total_sell_price: Decimal) -> D
 
 
 def get_sri() -> SRI:
-    """Calculate SRI for CSS and Javascript files."""
+    """Calculate Subresource Integrity for CSS and Javascript files."""
     try:
         sri = _cache["sri"]
     except KeyError:
@@ -408,7 +432,7 @@ def get_sri() -> SRI:
 
 
 def calculate_sri_on_file(filename: str) -> str:
-    """Calculate SRI string."""
+    """Calculate Subresource Integrity string."""
     hash_digest = hash_sum(filename, sha384()).digest()
     hash_base64 = b64encode(hash_digest).decode()
     return "sha384-{}".format(hash_base64)
