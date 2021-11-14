@@ -1,7 +1,7 @@
 import json
 import os
 import unittest
-from gcp_storage_emulator.server import create_server
+from gcp_storage_emulator.server import create_server  # type: ignore
 from main import app
 from unittest.mock import patch
 
