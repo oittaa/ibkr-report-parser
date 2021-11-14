@@ -11,6 +11,7 @@ ENV PORT 8080
 
 WORKDIR $APP_HOME
 COPY main.py requirements.txt ./
+COPY ibkr_report/ ./ibkr_report/
 COPY static/ ./static/
 COPY templates/ ./templates/
 RUN pip3 install --no-cache-dir -r requirements.txt

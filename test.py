@@ -1,16 +1,20 @@
 import json
 import os
 import unittest
-from gcp_storage_emulator.server import create_server  # type: ignore
-from main import app
 from unittest.mock import patch
+
+from gcp_storage_emulator.server import create_server  # type: ignore
+
+from ibkr_report.tools import Cache
+from main import app
 
 TEST_BUCKET = "test"
 TEST_URL = "file://" + os.path.abspath(os.getcwd()) + "/test-data/eurofxref-hist.zip"
 
 
 @patch("main.BUCKET_ID", TEST_BUCKET)
-@patch("main.EXCHANGE_RATES_URL", TEST_URL)
+@patch("ibkr_report.exchangerates.BUCKET_ID", TEST_BUCKET)
+@patch("ibkr_report.exchangerates.EXCHANGE_RATES_URL", TEST_URL)
 class SmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -28,6 +32,7 @@ class SmokeTests(unittest.TestCase):
         self.app = app.test_client()
         self.assertEqual(app.debug, False)
         self._server.wipe()
+        Cache.clear()
 
     def test_get_main_page(self):
         response = self.app.get("/")
@@ -161,14 +166,20 @@ class SmokeTests(unittest.TestCase):
             '400 Bad Request: Invalid data. "Trade" and "ClosedLot" quantities do not match. Date: 2021-03-15, Symbol: UPST',
         )
 
-    @patch("main._cache", {})
-    @patch("main._MAXCACHE", 0)
+    @patch("ibkr_report.tools._MAXCACHE", 0)
     def test_caching_filled_from_cron(self):
         response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
         self.assertEqual(response.status_code, 200)
         data = {"file": open("test-data/data_single_account.csv", "rb")}
         response = self.app.post("/?json", data=data)
         self.assertEqual(response.status_code, 200)
+
+    @patch("ibkr_report.tools._MAXCACHE", 5)
+    def test_cache(self):
+        for i in range(6):
+            Cache.set(i, i)
+            self.assertEqual(Cache.get(i), i)
+        self.assertIsNone(Cache.get(0))
 
 
 if __name__ == "__main__":
