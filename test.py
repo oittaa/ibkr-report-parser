@@ -31,8 +31,6 @@ class SmokeTests(unittest.TestCase):
     def setUp(self):
         self.app = app.test_client()
         self.assertEqual(app.debug, False)
-        self._server.wipe()
-        Cache.clear()
 
     def test_get_main_page(self):
         response = self.app.get("/")
@@ -53,6 +51,9 @@ class SmokeTests(unittest.TestCase):
         )
 
     def test_post_single_account_json(self):
+        self._server.wipe()
+        Cache.clear()
+
         data = {"file": open("test-data/data_single_account.csv", "rb")}
         response = self.app.post("/?json", data=data)
         self.assertEqual(response.status_code, 200)
@@ -168,6 +169,9 @@ class SmokeTests(unittest.TestCase):
 
     @patch("ibkr_report.tools._MAXCACHE", 0)
     def test_caching_filled_from_cron(self):
+        self._server.wipe()
+        Cache.clear()
+
         response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
         self.assertEqual(response.status_code, 200)
         data = {"file": open("test-data/data_single_account.csv", "rb")}
