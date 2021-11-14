@@ -24,6 +24,7 @@ _OFFSET_DICT = {
     tuple(_SINGLE_ACCOUNT): 0,
     tuple(_MULTI_ACCOUNT): len(_MULTI_ACCOUNT) - len(_SINGLE_ACCOUNT),
 }
+_FIELD_COUNT = len(_SINGLE_ACCOUNT)
 _DATE = "%Y-%m-%d"
 _TIME = " %H:%M:%S"
 _DATE_STR_FORMATS = (_DATE + "," + _TIME, _DATE + _TIME, _DATE)

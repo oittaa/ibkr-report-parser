@@ -4,8 +4,8 @@ from decimal import Decimal
 from typing import Iterable, List, Optional, Tuple
 
 from ibkr_report.definitions import (
+    _FIELD_COUNT,
     _OFFSET_DICT,
-    _SINGLE_ACCOUNT,
     AssetCategory,
     DataDiscriminator,
     Field,
@@ -50,7 +50,7 @@ class Report:
     def _is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
         """Checks whether the current row is part of a trade or not."""
         if (
-            len(items) == len(_SINGLE_ACCOUNT) + self._offset
+            len(items) == _FIELD_COUNT + self._offset
             and items[Field.TRADES] == FieldValues.trades
             and items[Field.HEADER] == FieldValues.header
             and items[Field.DATA_DISCRIMINATOR]
