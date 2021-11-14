@@ -45,30 +45,6 @@ class Trade:
             self.data.quantity,
         )
 
-    @staticmethod
-    def currency_rate(currency: str, date_str: str) -> Decimal:
-        """Currency's exchange rate on a given day. Caches results."""
-        cache_key = datetime.now().strftime(_DATE)
-
-        currencies = Cache.get(cache_key)
-        if not currencies:
-            log.debug("Cache miss: %s", cache_key)
-            currencies = ExchangeRates()
-            Cache.set(key=cache_key, value=currencies)
-        return currencies.eur_exchange_rate(currency, date_str)
-
-    @staticmethod
-    def deemed_profit(sell_price: Decimal, buy_date: str, sell_date: str) -> Decimal:
-        """If you have owned the shares you sell for less than 10 years, the deemed
-        acquisition cost is 20% of the selling price of the shares.
-        If you have owned the shares you sell for at least 10 years, the deemed
-        acquisition cost is 40% of the selling price of the shares.
-        """
-        multiplier = Decimal(0.8)
-        if get_date(buy_date) <= add_years(get_date(sell_date), -10):
-            multiplier = Decimal(0.6)
-        return multiplier * sell_price
-
     def details_from_closed_lot(self, items: Tuple[str, ...]) -> TradeDetails:
         """Calculates the realized gains or losses from the ClosedLot related to the Trade."""
         error_msg = ""
@@ -139,3 +115,26 @@ class Trade:
         )
         quantity = decimal_cleanup(items[Field.QUANTITY + self.offset])
         return RowData(symbol, date_str, rate, price_per_share, quantity)
+
+    @staticmethod
+    def currency_rate(currency: str, date_str: str) -> Decimal:
+        """Currency's exchange rate on a given day. Caches results."""
+        cache_key = datetime.now().strftime(_DATE)
+        rates = Cache.get(cache_key)
+        if not rates:
+            log.debug("Cache miss: %s", cache_key)
+            rates = ExchangeRates()
+            Cache.set(key=cache_key, value=rates)
+        return rates.eur_exchange_rate(currency, date_str)
+
+    @staticmethod
+    def deemed_profit(sell_price: Decimal, buy_date: str, sell_date: str) -> Decimal:
+        """If you have owned the shares you sell for less than 10 years, the deemed
+        acquisition cost is 20% of the selling price of the shares.
+        If you have owned the shares you sell for at least 10 years, the deemed
+        acquisition cost is 40% of the selling price of the shares.
+        """
+        multiplier = Decimal(0.8)
+        if get_date(buy_date) <= add_years(get_date(sell_date), -10):
+            multiplier = Decimal(0.6)
+        return multiplier * sell_price

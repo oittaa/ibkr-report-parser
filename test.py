@@ -175,11 +175,17 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
     @patch("ibkr_report.tools._MAXCACHE", 5)
-    def test_cache(self):
-        for i in range(6):
-            Cache.set(i, i)
-            self.assertEqual(Cache.get(i), i)
-        self.assertIsNone(Cache.get(0))
+    def test_cache_pruning(self):
+        Cache.set("my_key", "my_value")
+        self.assertEqual(Cache.get("my_key"), "my_value")
+
+        value = "x {}"
+        for key in range(5):
+            Cache.set(key, value.format(key))
+        for key in range(5):
+            self.assertEqual(Cache.get(key), value.format(key))
+
+        self.assertIsNone(Cache.get("my_key"))
 
 
 if __name__ == "__main__":
