@@ -22,6 +22,7 @@ from csv import reader
 from dataclasses import dataclass
 from datetime import datetime, timedelta, date
 from decimal import Decimal
+from enum import IntEnum, unique
 from flask import Flask, abort, make_response, render_template, request
 from google.cloud import exceptions, storage  # type: ignore
 from hashlib import sha384
@@ -66,6 +67,25 @@ _cache: Dict = {}
 _MAXCACHE = 5
 
 
+@unique
+class Field(IntEnum):
+    Trades = 0
+    Header = 1
+    DataDiscriminator = 2
+    AssetCategory = 3
+    Currency = 4
+    Symbol = 5
+    DateTime = 6
+    Exchange = 7
+    Quantity = 8
+    TPrice = 9
+    Proceeds = 10
+    CommFee = 11
+    Basis = 12
+    RealizedPL = 13
+    Code = 14
+
+
 @dataclass
 class SRI:
     css: str
@@ -73,7 +93,7 @@ class SRI:
 
 
 @dataclass
-class TickerInfo:
+class RowData:
     symbol: str
     date_str: str
     rate: Decimal
@@ -98,98 +118,126 @@ class Trade:
     closed_quantity: Decimal = Decimal(0)
     total_selling_price: Decimal = Decimal(0)
     offset: int = 0
-    fields: TickerInfo
+    data: RowData
 
     def __init__(self, items: Tuple[str, ...], offset: int) -> None:
         """Initializes the Trade and calculates the total selling price from it."""
         self.offset = offset
-        self.fields = self._ticker_info(items)
-        self.fee = decimal_cleanup(items[11 + offset]) / self.fields.rate
-        # Sold stocks have a negative value in the "Quantity" column, items[8 + offset]
-        if self.fields.quantity < Decimal(0):
+        self.data = self._row_data(items)
+        self.fee = decimal_cleanup(items[Field.CommFee + offset]) / self.data.rate
+        # Sold stocks have a negative value in the "Quantity" column
+        if self.data.quantity < Decimal(0):
             self.total_selling_price = (
-                decimal_cleanup(items[10 + offset]) / self.fields.rate
+                decimal_cleanup(items[Field.Proceeds + offset]) / self.data.rate
             )
         app.logger.debug(
             'Trade: "%s" "%s" %.2f',
-            self.fields.date_str,
-            self.fields.symbol,
-            self.fields.quantity,
+            self.data.date_str,
+            self.data.symbol,
+            self.data.quantity,
         )
 
-    def _ticker_info(self, items: Tuple[str, ...]) -> TickerInfo:
-        symbol = items[5 + self.offset]
-        date_str = items[6 + self.offset]
-        rate = eur_exchange_rate(currency=items[4], date_str=items[6 + self.offset])
-        price_per_share = decimal_cleanup(items[9 + self.offset]) / rate
-        quantity = decimal_cleanup(items[8 + self.offset])
-        return TickerInfo(symbol, date_str, rate, price_per_share, quantity)
+    @staticmethod
+    def currency_rate(currency: str, date_str: str) -> Decimal:
+        """Currency's exchange rate on a given day. Caches results."""
+        cache_key = datetime.now().strftime(_DATE)
+        if cache_key not in _cache:
+            app.logger.debug("Cache miss: %s", cache_key)
+            if len(_cache) >= _MAXCACHE:
+                try:
+                    del _cache[next(iter(_cache))]
+                except (StopIteration, RuntimeError, KeyError):
+                    pass
+            _cache[cache_key] = ExchangeRates()
+        try:
+            return _cache[cache_key].eur_exchange_rate(currency, date_str)
+        except ValueError as err:
+            app.logger.error(err)
+            abort(400, description=err)
+
+    @staticmethod
+    def deemed_profit(sell_price: Decimal, buy_date: str, sell_date: str) -> Decimal:
+        """If you have owned the shares you sell for less than 10 years, the deemed
+        acquisition cost is 20% of the selling price of the shares.
+        If you have owned the shares you sell for at least 10 years, the deemed
+        acquisition cost is 40% of the selling price of the shares.
+        """
+        multiplier = Decimal(0.8)
+        if get_date(buy_date) <= add_years(get_date(sell_date), -10):
+            multiplier = Decimal(0.6)
+        return multiplier * sell_price
 
     def details_from_closed_lot(self, items: Tuple[str, ...]) -> TradeDetails:
-        """Most importantly calculates the realized gains or losses from the ClosedLot
-        related to the Trade.
-        """
+        """Calculates the realized gains or losses from the ClosedLot related to the Trade."""
         error_msg = ""
-        fields = self._ticker_info(items)
-        if self.fields.symbol != fields.symbol:
+        lot_data = self._row_data(items)
+        if self.data.symbol != lot_data.symbol:
             error_msg = "Symbol mismatch! Date: {}, Trade: {}, ClosedLot: {}".format(
-                fields.date_str, self.fields.symbol, fields.symbol
+                lot_data.date_str, self.data.symbol, lot_data.symbol
             )
-        elif abs(self.fields.quantity + fields.quantity) > abs(self.fields.quantity):
+        elif abs(self.data.quantity + lot_data.quantity) > abs(self.data.quantity):
             error_msg = 'Invalid data. "Trade" and "ClosedLot" quantities do not match. Date: {}, Symbol: {}'.format(
-                fields.date_str, fields.symbol
+                lot_data.date_str, lot_data.symbol
             )
         if error_msg:
             app.logger.error(error_msg)
             app.logger.debug(items)
             abort(400, description=error_msg)
 
-        sell_date = date_without_time(self.fields.date_str)
-        sell_price = self.fields.price_per_share
-        buy_date = date_without_time(fields.date_str)
-        buy_price = fields.price_per_share
+        sell_date = date_without_time(self.data.date_str)
+        sell_price = self.data.price_per_share
+        buy_date = date_without_time(lot_data.date_str)
+        buy_price = lot_data.price_per_share
 
         # Swap if closing a short position
-        if fields.quantity < Decimal(0):
+        if lot_data.quantity < Decimal(0):
             sell_date, buy_date = buy_date, sell_date
             sell_price, buy_price = buy_price, sell_price
 
         # One option represents 100 shares of the underlying stock
-        multiplier = 100 if items[3] == "Equity and Index Options" else 1
+        multiplier = (
+            100 if items[Field.AssetCategory] == "Equity and Index Options" else 1
+        )
 
         realized = (
-            abs(fields.quantity) * (sell_price - buy_price) * multiplier
-            - fields.quantity * self.fee / self.fields.quantity
+            abs(lot_data.quantity) * (sell_price - buy_price) * multiplier
+            - lot_data.quantity * self.fee / self.data.quantity
         )
-        total_sell_price = abs(fields.quantity) * sell_price * multiplier
+        total_sell_price = abs(lot_data.quantity) * sell_price * multiplier
         realized = min(
             realized,
-            deemed_profit(
-                buy_date=buy_date,
-                sell_date=sell_date,
-                total_sell_price=total_sell_price,
-            ),
+            self.deemed_profit(total_sell_price, buy_date, sell_date),
         )
         app.logger.info(
             "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, Selling price: %.2f, Gains/Losses: %.2f",
-            fields.symbol,
-            abs(fields.quantity),
+            lot_data.symbol,
+            abs(lot_data.quantity),
             buy_date,
             sell_date,
             total_sell_price,
             realized,
         )
-        self.closed_quantity += fields.quantity
-        if self.closed_quantity + self.fields.quantity == Decimal(0):
+        self.closed_quantity += lot_data.quantity
+        if self.closed_quantity + self.data.quantity == Decimal(0):
             app.logger.debug("All lots closed")
         return TradeDetails(
-            symbol=fields.symbol,
-            quantity=abs(fields.quantity),
+            symbol=lot_data.symbol,
+            quantity=abs(lot_data.quantity),
             buy_date=buy_date,
             sell_date=sell_date,
             price=total_sell_price,
             realized=realized,
         )
+
+    def _row_data(self, items: Tuple[str, ...]) -> RowData:
+        symbol = items[Field.Symbol + self.offset]
+        date_str = items[Field.DateTime + self.offset]
+        rate = self.currency_rate(
+            items[Field.Currency], items[Field.DateTime + self.offset]
+        )
+        price_per_share = decimal_cleanup(items[Field.TPrice + self.offset]) / rate
+        quantity = decimal_cleanup(items[Field.Quantity + self.offset])
+        return RowData(symbol, date_str, rate, price_per_share, quantity)
 
 
 class IBKRReport:
@@ -228,20 +276,20 @@ class IBKRReport:
         """Checks whether the current row is part of a trade or not."""
         if (
             len(items) == 15 + self._offset
-            and items[0] == "Trades"
-            and items[1] == "Data"
-            and items[2] in ("Trade", "ClosedLot")
-            and items[3] in ("Stocks", "Equity and Index Options")
+            and items[Field.Trades] == "Trades"
+            and items[Field.Header] == "Data"
+            and items[Field.DataDiscriminator] in ("Trade", "ClosedLot")
+            and items[Field.AssetCategory] in ("Stocks", "Equity and Index Options")
         ):
             return True
         return False
 
     def _handle_trade(self, items: Tuple[str, ...]) -> None:
         """Parses prices, gains, and losses from trades."""
-        if items[2] == "Trade":
+        if items[Field.DataDiscriminator] == "Trade":
             self._trade = Trade(items, self._offset)
             self.prices += self._trade.total_selling_price
-        elif items[2] == "ClosedLot":
+        elif items[Field.DataDiscriminator] == "ClosedLot":
             if not self._trade:
                 abort(400, description="Tried to close a lot without trades.")
             details = self._trade.details_from_closed_lot(items)
@@ -252,6 +300,119 @@ class IBKRReport:
             self.details.append(details)
 
 
+class ExchangeRates:
+    """Euro foreign exchange rates"""
+
+    rates: CurrencyDict = {}
+
+    def __init__(self, url: str = None, cron_job: bool = False) -> None:
+        """Tries to fetch a previously built exchange rate dictionary from a Google Cloud
+        Storage bucket. If that's not available, downloads the official exchange rates from
+        European Central Bank and builds a new dictionary from it.
+        """
+        if url is None:
+            url = EXCHANGE_RATES_URL
+        if BUCKET_ID:
+            today = datetime.now().strftime(_DATE)
+            self.latest_rates_file = SAVED_RATES_FILE.format(today)
+            self._init_storage_client()
+            try:
+                self.bucket = self.client.get_bucket(BUCKET_ID)
+            except exceptions.NotFound:
+                self.bucket = self.client.create_bucket(BUCKET_ID)
+            self._download_rates_from_bucket(cron_job)
+        if not self.rates:
+            self.download_official_rates(url)
+            if BUCKET_ID:
+                self._upload_rates_to_bucket()
+
+    def add_to_exchange_rate_dictionary(self, rates_file: Iterable[bytes]) -> None:
+        """Builds the dictionary for the exchange rates from the downloaded CSV file
+        and adds it to the dictionary.
+
+        {"2015-01-20": {"USD": "1.1579", ...}, ...}
+        """
+        rates = {}
+        currencies = None
+        for items in reader(iterdecode(rates_file, "utf-8")):
+            if items[0] == "Date":
+                # The first row should be "Date,USD,JPY,..."
+                currencies = items
+            elif currencies and match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
+                # And the following rows like "2015-01-20,1.1579,137.37,..."
+                date_rates = {}
+                for key, val in enumerate(items):
+                    if key == 0 or not currencies[key] or not is_number(val):
+                        continue
+                    date_rates[currencies[key]] = val
+                if date_rates:
+                    rates[items[0]] = date_rates
+
+        self.rates = {**self.rates, **rates}
+        # TODO Python3.9+ "self.rates |= rates"
+
+    def download_official_rates(self, url: str) -> None:
+        """Downloads the official currency exchange rates from European Central Bank
+        and builds a new exchange rate dictionary from it.
+        """
+        retries = 0
+        while True:
+            if retries > MAX_HTTP_RETRIES:
+                raise ValueError(
+                    "Maximum number of retries exceeded. Could not retrieve currency exchange rates."
+                )
+            try:
+                response = urlopen(url)
+                break
+            except HTTPError as e:
+                # Return code error (e.g. 404, 501, ...)
+                app.logger.warning("HTTP Error while retrieving rates: %d", e.code)
+                retries += 1
+        app.logger.debug("Successfully downloaded the latest exchange rates: %s", url)
+        with ZipFile(BytesIO(response.read())) as rates_zip:
+            for filename in rates_zip.namelist():
+                with rates_zip.open(filename) as rates_file:
+                    self.add_to_exchange_rate_dictionary(rates_file)
+        app.logger.debug("Parsed exchange rates from the retrieved data.")
+
+    def eur_exchange_rate(self, currency: str, date_str: str) -> Decimal:
+        """Currency's exchange rate on a given day."""
+        if currency == "EUR":
+            return Decimal(1)
+
+        original_date = search_date = get_date(date_str)
+        while original_date - search_date < timedelta(MAX_BACKTRACK_DAYS):
+            date_rates = self.rates.get(search_date.strftime(_DATE), {})
+            rate = date_rates.get(currency)
+            if rate is not None:
+                return Decimal(rate)
+            search_date -= timedelta(1)
+        error_msg = "Currency {} not found near date {} - ended search at {}"
+        raise ValueError(error_msg.format(currency, original_date, search_date))
+
+    def _init_storage_client(self) -> None:
+        if getenv("STORAGE_EMULATOR_HOST"):
+            client = storage.Client.create_anonymous_client()
+            client.project = "<none>"
+        else:
+            client = storage.Client()
+        self.client = client
+
+    def _upload_rates_to_bucket(self) -> None:
+        blob = self.bucket.blob(self.latest_rates_file)
+        blob.upload_from_string(compress(dumps(self.rates).encode("utf-8")))
+
+    def _download_rates_from_bucket(self, cron_job: bool = False) -> None:
+        blob = self.bucket.get_blob(self.latest_rates_file)
+        if not blob and not cron_job:
+            # Try to use exchange rates from the previous day if not in a cron job.
+            yesterday = (datetime.now() - timedelta(1)).strftime(_DATE)
+            previous_rates_file = SAVED_RATES_FILE.format(yesterday)
+            blob = self.bucket.get_blob(previous_rates_file)
+        if blob:
+            self.rates = loads(decompress(blob.download_as_bytes()).decode("utf-8"))
+
+
 def get_date(date_str: str) -> date:
     """Converts a string formatted date to a date object."""
     for date_format in _DATE_STR_FORMATS:
@@ -259,9 +420,7 @@ def get_date(date_str: str) -> date:
             return datetime.strptime(date_str, date_format).date()
         except ValueError:
             pass
-    error_msg = "Invalid date '{}'".format(date_str)
-    app.logger.error(error_msg)
-    abort(400, description=error_msg)
+    raise ValueError("Invalid date '{}'".format(date_str))
 
 
 def add_years(d: date, years: int) -> date:
@@ -292,140 +451,16 @@ def is_number(s: str) -> bool:
         return False
 
 
-def build_exchange_rate_dictionary(rates_file: Iterable[bytes]) -> CurrencyDict:
-    """Builds the dictionary for the exchange rates from the downloaded CSV file.
-    {"2015-01-20": {"USD": "1.1579", ...}, ...}
-    """
-    rates = {}
-    currencies = None
-    for items in reader(iterdecode(rates_file, "utf-8")):
-        if items[0] == "Date":
-            currencies = items
-        elif currencies and match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
-            date_rates = {}
-            for key, val in enumerate(items):
-                if key == 0 or not currencies[key] or not is_number(val):
-                    continue
-                date_rates[currencies[key]] = val
-            if date_rates:
-                rates[items[0]] = date_rates
-    return rates
-
-
-def download_official_rates_ecb(url: str) -> CurrencyDict:
-    """Downloads the official currency exchange rates from European Central Bank
-    and builds a new exchange rate dictionary from it.
-    """
-    retries = 0
-    rates: CurrencyDict = {}
-    while True:
-        if retries > MAX_HTTP_RETRIES:
-            raise ValueError(
-                "Maximum number of retries exceeded. Could not retrieve currency exchange rates."
-            )
-        try:
-            response = urlopen(url)
-            break
-        except HTTPError as e:
-            # Return code error (e.g. 404, 501, ...)
-            app.logger.warning("HTTP Error while retrieving rates: %d", e.code)
-            retries += 1
-    app.logger.debug("Successfully downloaded the latest exchange rates: %s", url)
-    with ZipFile(BytesIO(response.read())) as rates_zip:
-        for filename in rates_zip.namelist():
-            with rates_zip.open(filename) as rates_file:
-                temp_rates = build_exchange_rate_dictionary(rates_file)
-                rates = {**rates, **temp_rates}
-                # TODO Python3.9+ "rates |= temp_rates"
-    app.logger.debug("Parsed exchange rates from the retrieved data.")
-    return rates
-
-
-def get_exchange_rates(cron_job: bool = False) -> CurrencyDict:
-    """Tries to fetch a previously built exchange rate dictionary from a Google Cloud
-    Storage bucket. If that's not available, downloads the official exchange rates from
-    European Central Bank and builds a new dictionary from it.
-    """
-    if BUCKET_ID:
-        if getenv("STORAGE_EMULATOR_HOST"):
-            client = storage.Client.create_anonymous_client()
-            client.project = "<none>"
-        else:
-            client = storage.Client()
-        try:
-            bucket = client.get_bucket(BUCKET_ID)
-        except exceptions.NotFound:
-            bucket = client.create_bucket(BUCKET_ID)
-        today = datetime.now().strftime(_DATE)
-        latest_rates_file = SAVED_RATES_FILE.format(today)
-        blob = bucket.get_blob(latest_rates_file)
-        if not blob and not cron_job:
-            # Try to use exchange rates from the previous day if not in a cron job.
-            yesterday = (datetime.now() - timedelta(1)).strftime(_DATE)
-            previous_rates_file = SAVED_RATES_FILE.format(yesterday)
-            blob = bucket.get_blob(previous_rates_file)
-        if blob:
-            return loads(decompress(blob.download_as_bytes()).decode("utf-8"))
-    rates = download_official_rates_ecb(EXCHANGE_RATES_URL)
-    if BUCKET_ID:
-        blob = bucket.blob(latest_rates_file)
-        blob.upload_from_string(compress(dumps(rates).encode("utf-8")))
-    return rates
-
-
-def eur_exchange_rate(currency: str, date_str: str) -> Decimal:
-    """Currency's exchange rate on a given day."""
-    if currency == "EUR":
-        return Decimal(1)
-    cache_key = datetime.now().strftime(_DATE)
-    if cache_key not in _cache:
-        app.logger.debug("Cache miss: %s", cache_key)
-        if len(_cache) >= _MAXCACHE:
-            try:
-                del _cache[next(iter(_cache))]
-            except (StopIteration, RuntimeError, KeyError):
-                pass
-        _cache[cache_key] = get_exchange_rates()
-    original_date = search_date = get_date(date_str)
-    while original_date - search_date < timedelta(MAX_BACKTRACK_DAYS):
-        date_rates = _cache[cache_key].get(search_date.strftime(_DATE), {})
-        rate = date_rates.get(currency)
-        if rate is not None:
-            return Decimal(rate)
-        search_date -= timedelta(1)
-    error_msg = "Currency {} not found near date {} - ended search at {}".format(
-        currency,
-        original_date,
-        search_date,
-    )
-    app.logger.error(error_msg)
-    abort(400, description=error_msg)
-
-
-def deemed_profit(buy_date: str, sell_date: str, total_sell_price: Decimal) -> Decimal:
-    """If you have owned the shares you sell for less than 10 years, the deemed
-    acquisition cost is 20% of the selling price of the shares.
-    If you have owned the shares you sell for at least 10 years, the deemed
-    acquisition cost is 40% of the selling price of the shares.
-    """
-    multiplier = Decimal(0.8)
-    if get_date(buy_date) <= add_years(get_date(sell_date), -10):
-        multiplier = Decimal(0.6)
-    return multiplier * total_sell_price
-
-
 def get_sri() -> SRI:
     """Calculate Subresource Integrity for CSS and Javascript files."""
     try:
         sri = _cache["sri"]
     except KeyError:
+        css_file = path.join(app.root_path, "static", "css", "main.css")
+        js_file = path.join(app.root_path, "static", "js", "main.js")
         sri = SRI(
-            css=calculate_sri_on_file(
-                path.join(app.root_path, "static", "css", "main.css")
-            ),
-            js=calculate_sri_on_file(
-                path.join(app.root_path, "static", "js", "main.js")
-            ),
+            css=calculate_sri_on_file(css_file),
+            js=calculate_sri_on_file(js_file),
         )
         _cache["sri"] = sri
     return sri
@@ -508,7 +543,7 @@ def cron():
     if request.headers.get("X-Appengine-Cron") is None:
         abort(403)
     if BUCKET_ID:
-        _ = get_exchange_rates(cron_job=True)
+        _ = ExchangeRates(cron_job=True)
     return "Done!"
 
 
