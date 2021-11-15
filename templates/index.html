@@ -49,5 +49,5 @@
       <label class="file-button"><input type="file" id="file" name="file">Choose file</label>
     </form>
 {%- block result %}{% endblock %}
-    <script src="{{ url_for('static', filename='js/main.js') }}?{{ sri.js|urlencode }}" integrity="{{ sri.js }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?{{ sri['main.js']|urlencode }}" integrity="{{ sri['main.js']  }}"></script>
 {%- endblock %}

@@ -92,7 +92,8 @@ class ExchangeRates:
                 break
             except HTTPError as e:
                 # Return code error (e.g. 404, 501, ...)
-                log.warning("HTTP Error while retrieving rates: %d", e.code)
+                error_msg = "HTTP Error while retrieving rates: %d %s"
+                log.warning(error_msg, e.code, e.reason)
                 retries += 1
         log.debug("Successfully downloaded the latest exchange rates: %s", url)
         with ZipFile(BytesIO(response.read())) as rates_zip:

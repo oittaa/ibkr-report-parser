@@ -70,6 +70,17 @@ def is_number(s: str) -> bool:
         return False
 
 
+def get_sri(files: Dict[str, str] = {}) -> Dict[str, str]:
+    """Calculate Subresource Integrity for CSS and Javascript files.
+    input: {'style.css': 'static/style.css', 'main.js': 'static/main.js', ...}
+    output: {'style.css': 'sha384-...', 'main.js': 'sha384-...', ...}
+    """
+    sri = {}
+    for key, file_path in files.items():
+        sri[key] = calculate_sri_on_file(file_path)
+    return sri
+
+
 def calculate_sri_on_file(filename: str) -> str:
     """Calculate Subresource Integrity string."""
     hash_digest = hash_sum(filename, sha384()).digest()
