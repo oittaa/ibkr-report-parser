@@ -2,6 +2,7 @@ import json
 import os
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from gcp_storage_emulator.server import create_server  # type: ignore
 
@@ -51,9 +52,6 @@ class SmokeTests(unittest.TestCase):
         )
 
     def test_post_single_account_json(self):
-        self._server.wipe()
-        Cache.clear()
-
         data = {"file": open("test-data/data_single_account.csv", "rb")}
         response = self.app.post("/?json", data=data)
         self.assertEqual(response.status_code, 200)
@@ -166,6 +164,22 @@ class SmokeTests(unittest.TestCase):
             data_json["error"],
             '400 Bad Request: Invalid data. "Trade" and "ClosedLot" quantities do not match. Date: 2021-03-15, Symbol: UPST',
         )
+
+    def test_404_error_from_downloading(self):
+        self._server.wipe()
+        Cache.clear()
+        with patch(
+            "ibkr_report.exchangerates.urlopen",
+            side_effect=HTTPError("", 404, "Test", {}, None),
+        ):
+            data = {"file": open("test-data/data_single_account.csv", "rb")}
+            response = self.app.post("/?json", data=data)
+            self.assertEqual(response.status_code, 400)
+            data_json = json.loads(response.data)
+            self.assertEqual(
+                data_json["error"],
+                "400 Bad Request: Maximum number of retries exceeded. Could not retrieve currency exchange rates.",
+            )
 
     @patch("ibkr_report.tools._MAXCACHE", 0)
     def test_caching_filled_from_cron(self):

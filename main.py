@@ -20,10 +20,10 @@ import os
 
 from flask import Flask, abort, make_response, render_template, request
 
-from ibkr_report.definitions import BUCKET_ID, SRI
+from ibkr_report.definitions import BUCKET_ID
 from ibkr_report.exchangerates import ExchangeRates
 from ibkr_report.report import Report
-from ibkr_report.tools import Cache, calculate_sri_on_file
+from ibkr_report.tools import get_sri
 
 TITLE = os.getenv("TITLE", "IBKR Report Parser")
 DEBUG = bool(os.getenv("DEBUG"))
@@ -33,20 +33,19 @@ LOGGING_LEVEL = os.getenv("LOGGING_LEVEL", "INFO")
 
 
 app = Flask(__name__)
+_SRI = get_sri(
+    {
+        "main.css": os.path.join(app.root_path, "static", "css", "main.css"),
+        "main.js": os.path.join(app.root_path, "static", "js", "main.js"),
+    }
+)
 
 
-def get_sri() -> SRI:
-    """Calculate Subresource Integrity for CSS and Javascript files."""
-    sri = Cache.get("sri")
-    if not sri:
-        css_file = os.path.join(app.root_path, "static", "css", "main.css")
-        js_file = os.path.join(app.root_path, "static", "js", "main.js")
-        sri = SRI(
-            css=calculate_sri_on_file(css_file),
-            js=calculate_sri_on_file(js_file),
-        )
-        Cache.set("sri", sri)
-    return sri
+def set_logging() -> None:
+    if LOGGING_LEVEL.upper() in logging._nameToLevel.keys():
+        app.logger.setLevel(logging._nameToLevel[LOGGING_LEVEL.upper()])
+    else:
+        app.logger.setLevel(logging.WARNING)
 
 
 def show_results(report: Report, json_format: bool = False):
@@ -64,7 +63,7 @@ def show_results(report: Report, json_format: bool = False):
         gains=report.gains,
         losses=report.losses,
         details=report.details,
-        sri=get_sri(),
+        sri=_SRI,
     )
 
 
@@ -77,7 +76,7 @@ def bad_request(e):
             "error.html",
             title=TITLE,
             message=str(e),
-            sri=get_sri(),
+            sri=_SRI,
         ),
         400,
     )
@@ -85,19 +84,16 @@ def bad_request(e):
 
 @app.route("/", methods=["GET"])
 def main_get():
-    resp = make_response(render_template("index.html", title=TITLE, sri=get_sri()))
+    resp = make_response(render_template("index.html", title=TITLE, sri=_SRI))
     resp.cache_control.max_age = 600
     return resp
 
 
 @app.route("/", methods=["POST"])
 def main_post():
-    if app.debug:
-        app.logger.setLevel(logging.DEBUG)
-    elif LOGGING_LEVEL.upper() in logging._nameToLevel.keys():
-        app.logger.setLevel(logging._nameToLevel[LOGGING_LEVEL.upper()])
-    else:
-        app.logger.setLevel(logging.WARNING)
+    if not app.debug:
+        set_logging()
+    app.logger.debug("Logging level: {}".format(logging._levelToName[app.logger.level]))
     try:
         report = Report(request.files.get("file"))
     except ValueError as err:

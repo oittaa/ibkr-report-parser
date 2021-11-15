@@ -70,12 +70,6 @@ class FieldValues:
 
 
 @dataclass
-class SRI:
-    css: str
-    js: str
-
-
-@dataclass
 class RowData:
     symbol: str
     date_str: str
