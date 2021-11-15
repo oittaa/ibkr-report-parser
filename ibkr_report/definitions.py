@@ -4,7 +4,10 @@ from decimal import Decimal
 from enum import Enum, IntEnum, unique
 from typing import Dict
 
+TITLE = os.getenv("TITLE", "IBKR Report Parser")
 BUCKET_ID = os.getenv("BUCKET_ID", None)
+DEBUG = bool(os.getenv("DEBUG"))
+LOGGING_LEVEL = os.getenv("LOGGING_LEVEL", "INFO")
 _DEFAULT_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip"
 EXCHANGE_RATES_URL = os.getenv("EXCHANGE_RATES_URL", _DEFAULT_URL)
 

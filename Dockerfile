@@ -10,17 +10,16 @@ ENV GUNICORN_THREADS 8
 ENV PORT 8080
 
 WORKDIR $APP_HOME
-COPY main.py requirements.txt ./
+COPY main.py pyproject.toml setup.py MANIFEST.in README.md LICENSE ./
 COPY ibkr_report/ ./ibkr_report/
-COPY static/ ./static/
-COPY templates/ ./templates/
-RUN pip3 install --no-cache-dir -r requirements.txt
+COPY bin/ ./bin/
+RUN pip3 install --no-cache-dir .
 
 FROM base AS test
 COPY test-data/ ./test-data/
-COPY test.py requirements-dev.txt ./
+COPY test.py requirements-dev.txt setup.cfg ./
 RUN pip3 install --no-cache-dir -r requirements-dev.txt && \
-    coverage run --source=./ --omit=test.py test.py && \
+    coverage run test.py && \
     coverage report -m
 
 FROM base AS prod

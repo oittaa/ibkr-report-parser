@@ -45,9 +45,9 @@
       </tbody>
     </table>
     <h2>2. Upload the CSV file.</h2>
-    <form method="post" id="form" action="{{ url_for('main_post') }}#result" enctype="multipart/form-data">
+    <form method="post" id="form" action="{{ url_for('website.result') }}#result" enctype="multipart/form-data">
       <label class="file-button"><input type="file" id="file" name="file">Choose file</label>
     </form>
 {%- block result %}{% endblock %}
-    <script src="{{ url_for('static', filename='js/main.js') }}?{{ sri['main.js']|urlencode }}" integrity="{{ sri['main.js']  }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?{{ sri['main.js']|urlencode }}" integrity="{{ sri['main.js'] }}"></script>
 {%- endblock %}

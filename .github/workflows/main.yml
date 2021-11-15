@@ -42,7 +42,7 @@ jobs:
         run: mypy
       - name: Run tests with Coverage
         run: |
-          coverage run --source=./ --omit=test.py test.py
+          coverage run test.py
           coverage report -m
           coverage xml
       - name: Upload coverage to Codecov

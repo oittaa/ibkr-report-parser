@@ -1,11 +1,13 @@
+import logging
 import re
 from base64 import b64encode
 from datetime import date, datetime
 from decimal import Decimal
+from flask import current_app
 from hashlib import sha384
 from typing import Dict
 
-from ibkr_report.definitions import _DATE_STR_FORMATS
+from ibkr_report.definitions import _DATE_STR_FORMATS, LOGGING_LEVEL
 
 _cache: Dict = {}
 _MAXCACHE = 10
@@ -75,9 +77,12 @@ def get_sri(files: Dict[str, str] = {}) -> Dict[str, str]:
     input: {'style.css': 'static/style.css', 'main.js': 'static/main.js', ...}
     output: {'style.css': 'sha384-...', 'main.js': 'sha384-...', ...}
     """
-    sri = {}
-    for key, file_path in files.items():
-        sri[key] = calculate_sri_on_file(file_path)
+    sri = Cache.get("sri")
+    if not sri:
+        sri = {}
+        for key, file_path in files.items():
+            sri[key] = calculate_sri_on_file(file_path)
+        Cache.set("sri", sri)
     return sri
 
 
@@ -96,3 +101,10 @@ def hash_sum(filename, hash_func):
         for block in iter(lambda: file.readinto(memory_view), 0):
             hash_func.update(memory_view[:block])
     return hash_func
+
+
+def set_logging() -> None:
+    if LOGGING_LEVEL.upper() in logging._nameToLevel.keys():
+        current_app.logger.setLevel(logging._nameToLevel[LOGGING_LEVEL.upper()])
+    else:
+        current_app.logger.setLevel(logging.WARNING)
