@@ -6,6 +6,7 @@ from urllib.error import HTTPError
 
 from gcp_storage_emulator.server import create_server  # type: ignore
 
+from ibkr_report.definitions import FieldValue
 from ibkr_report.tools import Cache
 from main import app
 
@@ -204,6 +205,9 @@ class SmokeTests(unittest.TestCase):
             self.assertEqual(Cache.get(key), value.format(key))
 
         self.assertIsNone(Cache.get("my_key"))
+
+    def test_str_enum(self):
+        self.assertEqual(FieldValue.TRADES, "Trades")
 
 
 if __name__ == "__main__":

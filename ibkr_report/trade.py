@@ -72,7 +72,7 @@ class Trade:
             sell_price, buy_price = buy_price, sell_price
 
         # One option represents 100 shares of the underlying stock
-        multiplier = 100 if items[Field.ASSET_CATEGORY] == AssetCategory.options else 1
+        multiplier = 100 if items[Field.ASSET_CATEGORY] == AssetCategory.OPTIONS else 1
 
         realized = (
             abs(lot_data.quantity) * (sell_price - buy_price) * multiplier
