@@ -77,12 +77,13 @@ def get_sri(files: Dict[str, str] = {}) -> Dict[str, str]:
     input: {'style.css': 'static/style.css', 'main.js': 'static/main.js', ...}
     output: {'style.css': 'sha384-...', 'main.js': 'sha384-...', ...}
     """
-    sri = Cache.get("sri")
+    cache_key = tuple(sorted(files.items()))
+    sri = Cache.get(cache_key)
     if not sri:
         sri = {}
         for key, file_path in files.items():
             sri[key] = calculate_sri_on_file(file_path)
-        Cache.set("sri", sri)
+        Cache.set(cache_key, sri)
     return sri
 
 
