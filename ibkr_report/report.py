@@ -9,7 +9,7 @@ from ibkr_report.definitions import (
     AssetCategory,
     DataDiscriminator,
     Field,
-    FieldValues,
+    FieldValue,
     TradeDetails,
 )
 from ibkr_report.trade import Trade
@@ -51,22 +51,22 @@ class Report:
         """Checks whether the current row is part of a trade or not."""
         if (
             len(items) == _FIELD_COUNT + self._offset
-            and items[Field.TRADES] == FieldValues.trades
-            and items[Field.HEADER] == FieldValues.header
+            and items[Field.TRADES] == FieldValue.TRADES
+            and items[Field.HEADER] == FieldValue.HEADER
             and items[Field.DATA_DISCRIMINATOR]
-            in (DataDiscriminator.trade, DataDiscriminator.closed_lot)
+            in (DataDiscriminator.TRADE, DataDiscriminator.CLOSED_LOT)
             and items[Field.ASSET_CATEGORY]
-            in (AssetCategory.stocks, AssetCategory.options)
+            in (AssetCategory.STOCKS, AssetCategory.OPTIONS)
         ):
             return True
         return False
 
     def _handle_trade(self, items: Tuple[str, ...]) -> None:
         """Parses prices, gains, and losses from trades."""
-        if items[Field.DATA_DISCRIMINATOR] == DataDiscriminator.trade:
+        if items[Field.DATA_DISCRIMINATOR] == DataDiscriminator.TRADE:
             self._trade = Trade(items, self._offset)
             self.prices += self._trade.total_selling_price
-        elif items[Field.DATA_DISCRIMINATOR] == DataDiscriminator.closed_lot:
+        elif items[Field.DATA_DISCRIMINATOR] == DataDiscriminator.CLOSED_LOT:
             if not self._trade:
                 raise ValueError("Tried to close a lot without trades.")
             details = self._trade.details_from_closed_lot(items)
