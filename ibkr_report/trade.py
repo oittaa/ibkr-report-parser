@@ -14,7 +14,7 @@ from ibkr_report.tools import (
 )
 
 
-log = logging.getLogger("main.trade")
+log = logging.getLogger(__name__)
 
 
 class Trade:

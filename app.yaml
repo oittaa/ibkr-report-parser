@@ -6,7 +6,7 @@ env_variables:
 
 handlers:
   - url: /static
-    static_dir: static
+    static_dir: ibkr_report/static
 
   - url: /.*
     secure: always

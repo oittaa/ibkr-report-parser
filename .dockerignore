@@ -16,12 +16,9 @@
 .pytest_cache
 .tox
 .vscode
-/setup.cfg
 app.yaml
 cron.yaml
 Dockerfile
-LICENSE
-README.md
 __pycache__
 cloudbuild.yaml
 coverage.xml

@@ -10,27 +10,21 @@
 
 ## How to run locally
 
-### 1. Clone the repository
+### Option 1: pip
+```
+pip install ibkr-report-parser
+ibkr-report-parser
+```
+
+### Option 2: Docker
 
 ```
 git clone https://github.com/oittaa/ibkr-report-parser.git
 cd ibkr-report-parser
-```
-
-### 2. a) Build and run the Docker container
-
-```
 docker build -t ibkr-report-parser:latest .
 docker run --rm -d -p 8080:8080 --name ibkr-report-parser ibkr-report-parser
 ```
 
-### 2. b) Or just run the Python app
-
-```
-pip3 install -r requirements.txt
-python3 main.py
-```
-
-### 3. Use the app
+### Use the app
 
 Browse to http://127.0.0.1:8080/

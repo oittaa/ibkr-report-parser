@@ -27,7 +27,7 @@ from ibkr_report.definitions import (
 from ibkr_report.tools import get_date, is_number
 
 
-log = logging.getLogger("main.exchangerates")
+log = logging.getLogger(__name__)
 
 
 class ExchangeRates:

@@ -1,0 +1,2 @@
+include ibkr_report/static/*/*
+include ibkr_report/templates/*.html
