@@ -52,7 +52,10 @@ class Trade:
         error_msg = ""
         lot_data = self._row_data(items)
         if self.data.symbol != lot_data.symbol:
-            error_msg = f"Symbol mismatch! Date: {lot_data.date_str}, Trade: {self.data.symbol}, ClosedLot: {lot_data.symbol}"
+            error_msg = (
+                f"Symbol mismatch! Date: {lot_data.date_str}, "
+                f"Trade: {self.data.symbol}, ClosedLot: {lot_data.symbol}"
+            )
         elif abs(self.data.quantity + lot_data.quantity) > abs(self.data.quantity):
             error_msg = (
                 'Invalid data. "Trade" and "ClosedLot" quantities do not match. '
@@ -85,7 +88,8 @@ class Trade:
             self.deemed_profit(total_sell_price, buy_date, sell_date),
         )
         log.info(
-            "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, Selling price: %.2f, Gains/Losses: %.2f",
+            "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, "
+            "Selling price: %.2f, Gains/Losses: %.2f",
             lot_data.symbol,
             abs(lot_data.quantity),
             buy_date,

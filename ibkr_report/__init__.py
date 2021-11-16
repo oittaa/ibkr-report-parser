@@ -18,7 +18,7 @@ from flask import Flask
 from ibkr_report import cron, website
 
 
-def create_app():
+def create_app() -> Flask:
     """Create and configure an instance of the Flask application."""
     app = Flask(__name__)
     app.register_blueprint(cron.bp)

@@ -37,43 +37,6 @@ _DATE_STR_FORMATS = (_DATE + "," + _TIME, _DATE + _TIME, _DATE)
 CurrencyDict = Dict[str, Dict[str, str]]
 
 
-# TODO: StrEnum available in Python 3.11+
-class StrEnum(str, Enum):  # pragma: no cover
-    """
-    Enum where members are also (and must be) strings
-    """
-
-    def __new__(cls, *values):
-        if len(values) > 3:
-            raise TypeError("too many arguments for str(): %r" % (values,))
-        if len(values) == 1:
-            # it must be a string
-            if not isinstance(values[0], str):
-                raise TypeError("%r is not a string" % (values[0],))
-        if len(values) >= 2:
-            # check that encoding argument is a string
-            if not isinstance(values[1], str):
-                raise TypeError("encoding must be a string, not %r" % (values[1],))
-        if len(values) == 3:
-            # check that errors argument is a string
-            if not isinstance(values[2], str):
-                raise TypeError("errors must be a string, not %r" % (values[2]))
-        value = str(*values)
-        member = str.__new__(cls, value)
-        member._value_ = value
-        return member
-
-    __str__ = str.__str__  # type: ignore
-
-    __format__ = str.__format__
-
-    def _generate_next_value_(name, start, count, last_values):
-        """
-        Return the lower-cased version of the member name.
-        """
-        return name.lower()
-
-
 @unique
 class Field(IntEnum):
     """CSV indices."""
@@ -95,24 +58,27 @@ class Field(IntEnum):
     CODE = 14
 
 
+# TODO: StrEnum available in Python 3.11+ DataDiscriminator(StrEnum)
 @unique
-class DataDiscriminator(StrEnum):
+class DataDiscriminator(str, Enum):
     """CSV DataDiscriminator values"""
 
     TRADE = "Trade"
     CLOSED_LOT = "ClosedLot"
 
 
+# TODO: StrEnum available in Python 3.11+ AssetCategory(StrEnum)
 @unique
-class AssetCategory(StrEnum):
+class AssetCategory(str, Enum):
     """CSV Asset Category values"""
 
     STOCKS = "Stocks"
     OPTIONS = "Equity and Index Options"
 
 
+# TODO: StrEnum available in Python 3.11+ FieldValue(StrEnum)
 @unique
-class FieldValue(StrEnum):
+class FieldValue(str, Enum):
     """Other possible values in a CSV file"""
 
     TRADES = "Trades"

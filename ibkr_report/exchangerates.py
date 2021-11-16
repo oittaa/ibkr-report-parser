@@ -87,7 +87,8 @@ class ExchangeRates:
         while True:
             if retries > MAX_HTTP_RETRIES:
                 raise ValueError(
-                    "Maximum number of retries exceeded. Could not retrieve currency exchange rates."
+                    "Maximum number of retries exceeded. "
+                    "Could not retrieve currency exchange rates."
                 )
             try:
                 with urlopen(url) as response:
