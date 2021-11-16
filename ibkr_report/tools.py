@@ -1,11 +1,15 @@
+"""Tools and utility functions."""
+
 import logging
+import os
 import re
 from base64 import b64encode
 from datetime import date, datetime
 from decimal import Decimal
-from flask import current_app
 from hashlib import sha384
 from typing import Dict
+
+from flask import current_app
 
 from ibkr_report.definitions import _DATE_STR_FORMATS, LOGGING_LEVEL
 
@@ -14,6 +18,8 @@ _MAXCACHE = 10
 
 
 class Cache:
+    """Simple cache in memory"""
+
     @staticmethod
     def get(key):
         if key in _cache:
@@ -41,57 +47,45 @@ def get_date(date_str: str) -> date:
             return datetime.strptime(date_str, date_format).date()
         except ValueError:
             pass
-    raise ValueError("Invalid date '{}'".format(date_str))
+    raise ValueError(f"Invalid date '{date_str}'")
 
 
-def add_years(d: date, years: int) -> date:
+def add_years(d_obj: date, years: int) -> date:
     """Return a date that's `years` years after the date (or datetime)
-    object `d`. Return the same calendar date (month and day) in the
+    object `d_obj`. Return the same calendar date (month and day) in the
     destination year, if it exists, otherwise use the previous day
     (thus changing February 29 to February 28).
     """
     try:
-        return d.replace(year=d.year + years)
+        return d_obj.replace(year=d_obj.year + years)
     except ValueError:
-        return d + (date(d.year + years, 3, 1) - date(d.year, 3, 1))
+        return d_obj + (date(d_obj.year + years, 3, 1) - date(d_obj.year, 3, 1))
 
 
 def date_without_time(date_str: str) -> str:
+    """Strips away hours, minutes, and seconds from a string."""
     return re.sub(r"(\d\d\d\d-\d\d-\d\d),? ([0-9:]+)", r"\1", date_str)
 
 
 def decimal_cleanup(number_str: str) -> Decimal:
+    """Converts a string to a decimal while ignoring spaces and commas."""
     return Decimal(re.sub(r"[,\s]+", "", number_str))
 
 
-def is_number(s: str) -> bool:
+def is_number(number_str: str) -> bool:
+    """Checks if a string can be converted into a number"""
     try:
-        float(s)
+        float(number_str)
         return True
     except ValueError:
         return False
-
-
-def get_sri(files: Dict[str, str] = {}) -> Dict[str, str]:
-    """Calculate Subresource Integrity for CSS and Javascript files.
-    input: {'style.css': 'static/style.css', 'main.js': 'static/main.js', ...}
-    output: {'style.css': 'sha384-...', 'main.js': 'sha384-...', ...}
-    """
-    cache_key = tuple(sorted(files.items()))
-    sri = Cache.get(cache_key)
-    if not sri:
-        sri = {}
-        for key, file_path in files.items():
-            sri[key] = calculate_sri_on_file(file_path)
-        Cache.set(cache_key, sri)
-    return sri
 
 
 def calculate_sri_on_file(filename: str) -> str:
     """Calculate Subresource Integrity string."""
     hash_digest = hash_sum(filename, sha384()).digest()
     hash_base64 = b64encode(hash_digest).decode()
-    return "sha384-{}".format(hash_base64)
+    return f"sha384-{hash_base64}"
 
 
 def hash_sum(filename, hash_func):
@@ -104,8 +98,40 @@ def hash_sum(filename, hash_func):
     return hash_func
 
 
+# TODO: Python 3.11+ use getLevelNamesMapping instead of _nameToLevel
 def set_logging() -> None:
-    if LOGGING_LEVEL.upper() in logging._nameToLevel.keys():
-        current_app.logger.setLevel(logging._nameToLevel[LOGGING_LEVEL.upper()])
-    else:
-        current_app.logger.setLevel(logging.WARNING)
+    """Set logging level according to the ENV variable LOGGING_LEVEL."""
+    if not current_app.debug:
+        if LOGGING_LEVEL.upper() in logging._nameToLevel:
+            current_app.logger.setLevel(logging._nameToLevel[LOGGING_LEVEL.upper()])
+        else:
+            current_app.logger.setLevel(logging.WARNING)
+    log_level = logging.getLevelName(current_app.logger.level)
+    current_app.logger.debug(f"Logging level: {log_level}")
+
+
+def sri(files: Dict[str, str]) -> Dict[str, str]:
+    """Calculate Subresource Integrity for CSS and Javascript files.
+
+    input: {'style.css': 'static/style.css', 'main.js': 'static/main.js', ...}
+    output: {'style.css': 'sha384-...', 'main.js': 'sha384-...', ...}
+    """
+    cache_key = tuple(sorted(files.items()))
+    sri_dict = Cache.get(cache_key)
+    if not sri_dict:
+        sri_dict = {}
+        for key, file_path in files.items():
+            sri_dict[key] = calculate_sri_on_file(file_path)
+        Cache.set(cache_key, sri_dict)
+    return sri_dict
+
+
+def _sri():
+    return sri(
+        {
+            "main.css": os.path.join(
+                current_app.root_path, "static", "css", "main.css"
+            ),
+            "main.js": os.path.join(current_app.root_path, "static", "js", "main.js"),
+        }
+    )

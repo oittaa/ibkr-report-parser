@@ -1,3 +1,5 @@
+"""Cron jobs"""
+
 from flask import Blueprint, abort, request
 
 from ibkr_report.definitions import BUCKET_ID
