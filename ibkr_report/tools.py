@@ -7,7 +7,7 @@ from base64 import b64encode
 from datetime import date, datetime
 from decimal import Decimal
 from hashlib import sha384
-from typing import Dict
+from typing import Any, Dict
 
 from flask import current_app
 
@@ -21,13 +21,15 @@ class Cache:
     """Simple cache in memory"""
 
     @staticmethod
-    def get(key):
+    def get(key: Any) -> Any:
+        """Get value from cache, None if not found"""
         if key in _cache:
             return _cache[key]
         return None
 
     @staticmethod
-    def set(key, value):
+    def set(key: Any, value: Any) -> None:
+        """Set value into cache"""
         if key not in _cache and len(_cache) >= _MAXCACHE:
             try:
                 del _cache[next(iter(_cache))]
@@ -36,7 +38,8 @@ class Cache:
         _cache[key] = value
 
     @staticmethod
-    def clear():
+    def clear() -> None:
+        """Clear cache"""
         _cache.clear()
 
 
@@ -88,6 +91,7 @@ def calculate_sri_on_file(filename: str) -> str:
     return f"sha384-{hash_base64}"
 
 
+# TODO: mypy 0.910 "BinaryIO" has no attribute "readinto"
 def hash_sum(filename, hash_func):
     """Compute message digest from a file."""
     byte_array = bytearray(128 * 1024)
@@ -126,7 +130,7 @@ def sri(files: Dict[str, str]) -> Dict[str, str]:
     return sri_dict
 
 
-def _sri():
+def _sri() -> Dict[str, str]:
     return sri(
         {
             "main.css": os.path.join(

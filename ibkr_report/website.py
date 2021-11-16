@@ -1,6 +1,7 @@
 """Flask Blueprints for the website."""
 
-from flask import Blueprint, abort, make_response, render_template, request
+from typing import Dict, Union
+from flask import Blueprint, Response, abort, make_response, render_template, request
 
 from ibkr_report.definitions import TITLE
 from ibkr_report.report import Report
@@ -11,7 +12,7 @@ bp = Blueprint("website", __name__)
 
 
 @bp.route("/", methods=["GET"])
-def index():
+def index() -> Response:
     """Main page"""
     resp = make_response(render_template("index.html", title=TITLE, sri=_sri()))
     resp.cache_control.max_age = 600
@@ -30,7 +31,9 @@ def result():
     return show_results(report=report, json_format=json_format)
 
 
-def show_results(report: Report, json_format: bool = False):
+def show_results(
+    report: Report, json_format: bool = False
+) -> Union[str, Dict[str, object]]:
     """Show the results either in JSON or HTML format."""
     if json_format:
         return {

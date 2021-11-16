@@ -10,7 +10,7 @@ bp = Blueprint("cron", __name__)
 
 
 @bp.route("/cron", methods=["GET"])
-def cron():
+def cron() -> str:
     """Cron function that fetches the latest exchange rates if necessary."""
     if request.headers.get("X-Appengine-Cron") is None:
         abort(403)
