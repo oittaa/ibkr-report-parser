@@ -37,6 +37,12 @@ _DATE_STR_FORMATS = (_DATE + "," + _TIME, _DATE + _TIME, _DATE)
 CurrencyDict = Dict[str, Dict[str, str]]
 
 
+class StrEnum(str, Enum):
+    """TODO: StrEnum available in Python 3.11+"""
+
+    ...
+
+
 @unique
 class Field(IntEnum):
     """CSV indices."""
@@ -58,27 +64,24 @@ class Field(IntEnum):
     CODE = 14
 
 
-# TODO: StrEnum available in Python 3.11+ DataDiscriminator(StrEnum)
 @unique
-class DataDiscriminator(str, Enum):
+class DataDiscriminator(StrEnum):
     """CSV DataDiscriminator values"""
 
     TRADE = "Trade"
     CLOSED_LOT = "ClosedLot"
 
 
-# TODO: StrEnum available in Python 3.11+ AssetCategory(StrEnum)
 @unique
-class AssetCategory(str, Enum):
+class AssetCategory(StrEnum):
     """CSV Asset Category values"""
 
     STOCKS = "Stocks"
     OPTIONS = "Equity and Index Options"
 
 
-# TODO: StrEnum available in Python 3.11+ FieldValue(StrEnum)
 @unique
-class FieldValue(str, Enum):
+class FieldValue(StrEnum):
     """Other possible values in a CSV file"""
 
     TRADES = "Trades"
