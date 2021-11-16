@@ -21,7 +21,7 @@ ibkr-report-parser
 ### Option 2: Docker
 ````
 docker pull ghcr.io/oittaa/ibkr-report-parser
-docker run --rm -d -p 8080:8080 --name ibkr-report-parser ibkr-report-parser
+docker run --rm -d -p 8080:8080 --name ibkr-report-parser ghcr.io/oittaa/ibkr-report-parser
 ````
 
 ### Option 3: Build yourself
