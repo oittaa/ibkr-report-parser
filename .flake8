@@ -9,10 +9,3 @@ exclude =
     build,
     dist,
     venv
-
-[mypy]
-files = *.py, ibkr_report/*.py
-
-[coverage:run]
-branch = True
-source = ibkr_report
