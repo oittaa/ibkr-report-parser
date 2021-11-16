@@ -17,7 +17,22 @@ ibkr-report-parser
 ```
 
 ### Option 2: Docker
+````
+docker pull ghcr.io/oittaa/ibkr-report-parser
+docker run --rm -d -p 8080:8080 --name ibkr-report-parser ibkr-report-parser
+````
 
+### Option 3: Build yourself
+
+#### Python
+```
+git clone https://github.com/oittaa/ibkr-report-parser.git
+cd ibkr-report-parser
+pip install -r requirements.txt
+python main.py
+```
+
+#### Docker
 ```
 git clone https://github.com/oittaa/ibkr-report-parser.git
 cd ibkr-report-parser
