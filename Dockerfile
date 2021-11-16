@@ -20,8 +20,10 @@ COPY test-data/ ./test-data/
 COPY test.py requirements-dev.txt setup.cfg ./
 RUN pip3 install --no-cache-dir -r requirements-dev.txt && \
     coverage run test.py && \
-    coverage report -m
+    coverage report -m && \
+    coverage xml
 
 FROM base AS prod
+COPY --from=test ${APP_HOME}/coverage.xml .
 ENTRYPOINT []
 CMD exec gunicorn --bind :$PORT --workers $GUNICORN_WORKERS --threads $GUNICORN_THREADS --timeout 0 main:app
