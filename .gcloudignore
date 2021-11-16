@@ -19,6 +19,7 @@
 /setup.py
 .dockerignore
 .editorconfig
+.flake8
 .github/
 Dockerfile
 LICENSE

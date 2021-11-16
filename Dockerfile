@@ -17,7 +17,7 @@ RUN pip3 install --no-cache-dir .
 
 FROM base AS test
 COPY test-data/ ./test-data/
-COPY test.py requirements-dev.txt setup.cfg ./
+COPY test.py requirements-dev.txt ./
 RUN pip3 install --no-cache-dir -r requirements-dev.txt && \
     coverage run test.py && \
     coverage report -m && \
