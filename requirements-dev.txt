@@ -2,3 +2,4 @@ coverage==6.1.2
 flake8==4.0.1
 gcp-storage-emulator==2021.10.31
 mypy==0.910
+toml==0.10.2
