@@ -1,9 +1,10 @@
-import os
-from flask import Blueprint, abort, current_app, make_response, render_template, request
+"""Flask Blueprints for the website."""
+
+from flask import Blueprint, abort, make_response, render_template, request
 
 from ibkr_report.definitions import TITLE
 from ibkr_report.report import Report
-from ibkr_report.tools import get_sri, set_logging
+from ibkr_report.tools import set_logging, _sri
 
 
 bp = Blueprint("website", __name__)
@@ -11,6 +12,7 @@ bp = Blueprint("website", __name__)
 
 @bp.route("/", methods=["GET"])
 def index():
+    """Main page"""
     resp = make_response(render_template("index.html", title=TITLE, sri=_sri()))
     resp.cache_control.max_age = 600
     return resp
@@ -18,18 +20,18 @@ def index():
 
 @bp.route("/result", methods=["POST"])
 def result():
-    if not current_app.debug:
-        set_logging()
-    current_app.logger.debug("Logging level: {}".format(current_app.logger.level))
+    """Parse results and pass them to show_results."""
+    set_logging()
     try:
         report = Report(request.files.get("file"))
     except ValueError as err:
         abort(400, description=err)
-    json_format = True if request.args.get("json") is not None else False
+    json_format = request.args.get("json") is not None
     return show_results(report=report, json_format=json_format)
 
 
 def show_results(report: Report, json_format: bool = False):
+    """Show the results either in JSON or HTML format."""
     if json_format:
         return {
             "prices": float(round(report.prices, 2)),
@@ -49,26 +51,16 @@ def show_results(report: Report, json_format: bool = False):
 
 
 @bp.errorhandler(400)
-def bad_request(e):
+def bad_request(err):
+    """Error response for bad requests."""
     if request.args.get("json") is not None:
-        return {"error": str(e)}, 400
+        return {"error": str(err)}, 400
     return (
         render_template(
             "error.html",
             title=TITLE,
-            message=str(e),
+            message=str(err),
             sri=_sri(),
         ),
         400,
-    )
-
-
-def _sri():
-    return get_sri(
-        {
-            "main.css": os.path.join(
-                current_app.root_path, "static", "css", "main.css"
-            ),
-            "main.js": os.path.join(current_app.root_path, "static", "js", "main.js"),
-        }
     )

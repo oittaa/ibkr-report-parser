@@ -1,3 +1,8 @@
+"""
+Total selling prices, total capital gains, and total capital losses calculated
+from the CSV files.
+"""
+
 import csv
 from codecs import iterdecode
 from decimal import Decimal
@@ -42,12 +47,12 @@ class Report:
                     self._offset = offset
                     self._trade = None
                     continue
-                if self._is_stock_or_options_trade(items):
+                if self.is_stock_or_options_trade(items):
                     self._handle_trade(items)
-        except UnicodeDecodeError:
-            raise ValueError("Input data not in UTF-8 text format.")
+        except UnicodeDecodeError as err:
+            raise ValueError("Input data not in UTF-8 text format.") from err
 
-    def _is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
+    def is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
         """Checks whether the current row is part of a trade or not."""
         if (
             len(items) == _FIELD_COUNT + self._offset

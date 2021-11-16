@@ -1,3 +1,5 @@
+"""Extracts details about trades."""
+
 import logging
 from datetime import datetime
 from decimal import Decimal
@@ -50,12 +52,11 @@ class Trade:
         error_msg = ""
         lot_data = self._row_data(items)
         if self.data.symbol != lot_data.symbol:
-            error_msg = "Symbol mismatch! Date: {}, Trade: {}, ClosedLot: {}".format(
-                lot_data.date_str, self.data.symbol, lot_data.symbol
-            )
+            error_msg = f"Symbol mismatch! Date: {lot_data.date_str}, Trade: {self.data.symbol}, ClosedLot: {lot_data.symbol}"
         elif abs(self.data.quantity + lot_data.quantity) > abs(self.data.quantity):
-            error_msg = 'Invalid data. "Trade" and "ClosedLot" quantities do not match. Date: {}, Symbol: {}'.format(
-                lot_data.date_str, lot_data.symbol
+            error_msg = (
+                'Invalid data. "Trade" and "ClosedLot" quantities do not match. '
+                f"Date: {lot_data.date_str}, Symbol: {lot_data.symbol}"
             )
         if error_msg:
             log.debug(items)

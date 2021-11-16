@@ -1,3 +1,5 @@
+"""Constants and other definitions"""
+
 import os
 from dataclasses import dataclass
 from decimal import Decimal
@@ -74,6 +76,8 @@ class StrEnum(str, Enum):  # pragma: no cover
 
 @unique
 class Field(IntEnum):
+    """CSV indices."""
+
     TRADES = 0
     HEADER = 1
     DATA_DISCRIMINATOR = 2
@@ -93,24 +97,32 @@ class Field(IntEnum):
 
 @unique
 class DataDiscriminator(StrEnum):
+    """CSV DataDiscriminator values"""
+
     TRADE = "Trade"
     CLOSED_LOT = "ClosedLot"
 
 
 @unique
 class AssetCategory(StrEnum):
+    """CSV Asset Category values"""
+
     STOCKS = "Stocks"
     OPTIONS = "Equity and Index Options"
 
 
 @unique
 class FieldValue(StrEnum):
+    """Other possible values in a CSV file"""
+
     TRADES = "Trades"
     HEADER = "Data"
 
 
 @dataclass
 class RowData:
+    """Extracted data from a CSV file"""
+
     symbol: str
     date_str: str
     rate: Decimal
@@ -120,6 +132,8 @@ class RowData:
 
 @dataclass
 class TradeDetails:
+    """Extracted and calculated data from a trade"""
+
     symbol: str
     quantity: Decimal
     buy_date: str

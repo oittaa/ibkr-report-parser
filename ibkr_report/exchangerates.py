@@ -1,3 +1,5 @@
+"""Euro foreign exchange rates from European Central Bank"""
+
 import csv
 import json
 import logging
@@ -59,7 +61,7 @@ class ExchangeRates:
         {"2015-01-20": {"USD": "1.1579", ...}, ...}
         """
         rates = {}
-        currencies = None
+        currencies = []
         for items in csv.reader(iterdecode(rates_file, "utf-8")):
             if items[0] == "Date":
                 # The first row should be "Date,USD,JPY,..."
@@ -88,15 +90,16 @@ class ExchangeRates:
                     "Maximum number of retries exceeded. Could not retrieve currency exchange rates."
                 )
             try:
-                response = urlopen(url)
+                with urlopen(url) as response:
+                    bytes_io = BytesIO(response.read())
                 break
-            except HTTPError as e:
+            except HTTPError as err:
                 # Return code error (e.g. 404, 501, ...)
                 error_msg = "HTTP Error while retrieving rates: %d %s"
-                log.warning(error_msg, e.code, e.reason)
+                log.warning(error_msg, err.code, err.reason)
                 retries += 1
         log.debug("Successfully downloaded the latest exchange rates: %s", url)
-        with ZipFile(BytesIO(response.read())) as rates_zip:
+        with ZipFile(bytes_io) as rates_zip:
             for filename in rates_zip.namelist():
                 with rates_zip.open(filename) as rates_file:
                     self.add_to_exchange_rate_dictionary(rates_file)
@@ -145,8 +148,10 @@ class ExchangeRates:
 
     @staticmethod
     def encode(data: CurrencyDict) -> bytes:
+        """Encode dictionary so it can be saved."""
         return compress(json.dumps(data).encode("utf-8"))
 
     @staticmethod
     def decode(data: bytes) -> CurrencyDict:
+        """Decode saved dictionary."""
         return json.loads(decompress(data).decode("utf-8"))
