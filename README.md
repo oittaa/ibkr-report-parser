@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/oittaa/ibkr-report-parser/branch/main/graph/badge.svg?token=BV211C3GE5)](https://codecov.io/gh/oittaa/ibkr-report-parser)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-Interactive Brokers (IBKR) Report Parser for MyTax (vero.fi)
+Interactive Brokers (IBKR) Report Parser for MyTax (vero.fi) - not affiliated with either service
 
 ## Example
 

@@ -136,7 +136,7 @@ jobs:
           key: ${{ runner.os }}-build-x-multi-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-build-x-multi-
-      - name: Login to GitHub Container Registry
+      - name: Login to Container Registry
         uses: docker/login-action@v1.10.0
         with:
           registry: ${{ env.REGISTRY }}
