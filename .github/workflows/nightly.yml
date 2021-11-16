@@ -60,6 +60,8 @@ jobs:
         uses: docker/metadata-action@v3.6.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=true
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
@@ -90,7 +92,7 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
       - name: Docker container up
-        run: docker run -d --rm -p 8080:8080 --name ${{ env.REPO_NAME }} ${{ env.IMAGE_NAME }}
+        run: docker run -d --rm -p 8080:8080 --name ${{ env.REPO_NAME }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
       - name: Wait 10 seconds
         run: sleep 10
       - name: Check running containers
