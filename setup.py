@@ -56,7 +56,7 @@ setup(
     ],
     install_requires=[
         "flask==2.0.2",
-        "google-cloud-storage==1.42.3",
+        "google-cloud-storage==1.43.0",
         "gunicorn==20.1.0",
     ],
     python_requires=">=3.7",
