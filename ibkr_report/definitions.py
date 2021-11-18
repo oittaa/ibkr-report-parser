@@ -3,7 +3,7 @@
 import os
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import Enum, IntEnum, unique
+from enum import Enum, IntEnum, auto, unique
 from typing import Dict
 
 TITLE = os.getenv("TITLE", "IBKR Report Parser")
@@ -86,6 +86,25 @@ class FieldValue(StrEnum):
 
     TRADES = "Trades"
     HEADER = "Data"
+
+
+@unique
+class ReportOptions(Enum):
+    """Report options
+
+    REPORT_CURRENCY:
+    The currency used in the output.
+
+    DEEMED_ACQUISITION_COST:
+    The deemed acquisition cost is either 20% or 40% of the selling price. The
+    percentage is determined on the basis of how long you have owned the
+    property before selling it. The deemed acquisition cost is 20% of the
+    selling price if you have owned the property for less than 10 years.
+    """
+
+    REPORT_CURRENCY = auto()
+    DEEMED_ACQUISITION_COST = auto()
+    OFFSET = auto()
 
 
 @dataclass

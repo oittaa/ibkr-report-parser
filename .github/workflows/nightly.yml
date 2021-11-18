@@ -44,7 +44,7 @@ jobs:
         run: mypy
       - name: Run tests with Coverage
         run: |
-          coverage run test.py
+          coverage run -m unittest discover
           coverage report -m
           coverage xml
 

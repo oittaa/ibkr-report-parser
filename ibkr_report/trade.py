@@ -3,9 +3,16 @@
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Tuple
+from typing import Dict, Tuple
 
-from ibkr_report.definitions import _DATE, AssetCategory, Field, RowData, TradeDetails
+from ibkr_report.definitions import (
+    _DATE,
+    AssetCategory,
+    Field,
+    ReportOptions,
+    RowData,
+    TradeDetails,
+)
 from ibkr_report.exchangerates import ExchangeRates
 from ibkr_report.tools import (
     Cache,
@@ -25,13 +32,15 @@ class Trade:
     fee: Decimal = Decimal(0)
     closed_quantity: Decimal = Decimal(0)
     total_selling_price: Decimal = Decimal(0)
-    offset: int = 0
     data: RowData
+    options: Dict
 
-    def __init__(self, items: Tuple[str, ...], offset: int) -> None:
+    def __init__(self, items: Tuple[str, ...], options: Dict) -> None:
         """Initializes the Trade and calculates the total selling price from it."""
-        self.offset = offset
+        self.options = options
         self.data = self._row_data(items)
+
+        offset = self.options[ReportOptions.OFFSET]
         self.fee = (
             decimal_cleanup(items[Field.COMMISSION_AND_FEES + offset]) / self.data.rate
         )
@@ -83,10 +92,11 @@ class Trade:
             - lot_data.quantity * self.fee / self.data.quantity
         )
         total_sell_price = abs(lot_data.quantity) * sell_price * multiplier
-        realized = min(
-            realized,
-            self.deemed_profit(total_sell_price, buy_date, sell_date),
-        )
+        if self.options.get(ReportOptions.DEEMED_ACQUISITION_COST):
+            realized = min(
+                realized,
+                self.deemed_profit(total_sell_price, buy_date, sell_date),
+            )
         log.info(
             "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, "
             "Selling price: %.2f, Gains/Losses: %.2f",
@@ -110,19 +120,19 @@ class Trade:
         )
 
     def _row_data(self, items: Tuple[str, ...]) -> RowData:
-        symbol = items[Field.SYMBOL + self.offset]
-        date_str = items[Field.DATE_TIME + self.offset]
+        offset = self.options[ReportOptions.OFFSET]
+        symbol = items[Field.SYMBOL + offset]
+        date_str = items[Field.DATE_TIME + offset]
         rate = self.currency_rate(
-            items[Field.CURRENCY], items[Field.DATE_TIME + self.offset]
+            items[Field.CURRENCY], items[Field.DATE_TIME + offset]
         )
         price_per_share = (
-            decimal_cleanup(items[Field.TRANSACTION_PRICE + self.offset]) / rate
+            decimal_cleanup(items[Field.TRANSACTION_PRICE + offset]) / rate
         )
-        quantity = decimal_cleanup(items[Field.QUANTITY + self.offset])
+        quantity = decimal_cleanup(items[Field.QUANTITY + offset])
         return RowData(symbol, date_str, rate, price_per_share, quantity)
 
-    @staticmethod
-    def currency_rate(currency: str, date_str: str) -> Decimal:
+    def currency_rate(self, currency: str, date_str: str) -> Decimal:
         """Currency's exchange rate on a given day. Caches results."""
         cache_key = datetime.now().strftime(_DATE)
         rates = Cache.get(cache_key)
@@ -130,7 +140,10 @@ class Trade:
             log.debug("Cache miss: %s", cache_key)
             rates = ExchangeRates()
             Cache.set(key=cache_key, value=rates)
-        return rates.eur_exchange_rate(currency, date_str)
+
+        return rates.exchange_rate(
+            self.options.get(ReportOptions.REPORT_CURRENCY), currency, date_str
+        )
 
     @staticmethod
     def deemed_profit(sell_price: Decimal, buy_date: str, sell_date: str) -> Decimal:
