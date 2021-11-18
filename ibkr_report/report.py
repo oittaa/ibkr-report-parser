@@ -6,7 +6,7 @@ from the CSV files.
 import csv
 from codecs import iterdecode
 from decimal import Decimal
-from typing import Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from ibkr_report.definitions import (
     _FIELD_COUNT,
@@ -15,6 +15,7 @@ from ibkr_report.definitions import (
     DataDiscriminator,
     Field,
     FieldValue,
+    ReportOptions,
     TradeDetails,
 )
 from ibkr_report.trade import Trade
@@ -29,11 +30,21 @@ class Report:
     gains: Decimal = Decimal(0)
     losses: Decimal = Decimal(0)
     details: List[TradeDetails]
-    _offset: int = 0
+    options: Dict
     _trade: Optional[Trade] = None
 
-    def __init__(self, file: Iterable[bytes] = None) -> None:
+    def __init__(
+        self,
+        file: Iterable[bytes] = None,
+        report_currency: str = "EUR",
+        use_deemed_acquisition_cost: bool = True,
+    ) -> None:
         self.details = []
+        self.options = {
+            ReportOptions.REPORT_CURRENCY: report_currency,
+            ReportOptions.DEEMED_ACQUISITION_COST: use_deemed_acquisition_cost,
+            ReportOptions.OFFSET: 0,
+        }
         if file:
             self.add_trades(file)
 
@@ -44,7 +55,7 @@ class Report:
                 items = tuple(items_list)
                 offset = _OFFSET_DICT.get(items)
                 if offset is not None:
-                    self._offset = offset
+                    self.options[ReportOptions.OFFSET] = offset
                     self._trade = None
                     continue
                 if self.is_stock_or_options_trade(items):
@@ -55,7 +66,7 @@ class Report:
     def is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
         """Checks whether the current row is part of a trade or not."""
         if (
-            len(items) == _FIELD_COUNT + self._offset
+            len(items) == _FIELD_COUNT + self.options[ReportOptions.OFFSET]
             and items[Field.TRADES] == FieldValue.TRADES
             and items[Field.HEADER] == FieldValue.HEADER
             and items[Field.DATA_DISCRIMINATOR]
@@ -69,7 +80,7 @@ class Report:
     def _handle_trade(self, items: Tuple[str, ...]) -> None:
         """Parses prices, gains, and losses from trades."""
         if items[Field.DATA_DISCRIMINATOR] == DataDiscriminator.TRADE:
-            self._trade = Trade(items, self._offset)
+            self._trade = Trade(items, self.options)
             self.prices += self._trade.total_selling_price
         elif items[Field.DATA_DISCRIMINATOR] == DataDiscriminator.CLOSED_LOT:
             if not self._trade:

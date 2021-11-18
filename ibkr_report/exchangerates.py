@@ -77,7 +77,7 @@ class ExchangeRates:
                     rates[items[0]] = date_rates
 
         self.rates = {**self.rates, **rates}
-        # TODO Python3.9+ "self.rates |= rates"
+        # TODO: Python3.9+ "self.rates |= rates"
 
     def download_official_rates(self, url: str) -> None:
         """Downloads the official currency exchange rates from European Central Bank
@@ -107,7 +107,7 @@ class ExchangeRates:
         log.debug("Parsed exchange rates from the retrieved data.")
 
     def eur_exchange_rate(self, currency: str, date_str: str) -> Decimal:
-        """Currency's exchange rate on a given day."""
+        """Euro exchange rate on a given day."""
         if currency == "EUR":
             return Decimal(1)
 
@@ -121,8 +121,33 @@ class ExchangeRates:
         error_msg = "Currency {} not found near date {} - ended search at {}"
         raise ValueError(error_msg.format(currency, original_date, search_date))
 
+    def exchange_rate(
+        self, currency_from: str, currency_to: str, date_str: str
+    ) -> Decimal:
+        """Exchange rate between two currencies on a given day."""
+        if currency_from == currency_to:
+            return Decimal(1)
+        if currency_from == "EUR":
+            return self.eur_exchange_rate(currency_to, date_str)
+        if currency_to == "EUR":
+            return Decimal(1) / self.eur_exchange_rate(currency_from, date_str)
+
+        original_date = search_date = get_date(date_str)
+        while original_date - search_date < timedelta(MAX_BACKTRACK_DAYS):
+            date_rates = self.rates.get(search_date.strftime(_DATE), {})
+            from_rate = date_rates.get(currency_from)
+            to_rate = date_rates.get(currency_to)
+            if from_rate is not None and to_rate is not None:
+                return Decimal(to_rate) / Decimal(from_rate)
+            search_date -= timedelta(1)
+        error_msg = "Currencies {} and {} not found near date {} - ended search at {}"
+        raise ValueError(
+            error_msg.format(currency_from, currency_to, original_date, search_date)
+        )
+
     def _init_storage_client(self) -> None:
         if os.getenv("STORAGE_EMULATOR_HOST"):
+            # Local testing etc.
             client = storage.Client.create_anonymous_client()
             client.project = "<none>"
         else:

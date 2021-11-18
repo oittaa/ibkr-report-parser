@@ -1,12 +1,15 @@
 import json
 import os
 import unittest
+from decimal import Decimal
 from unittest.mock import patch
 from urllib.error import HTTPError
 
 from gcp_storage_emulator.server import create_server  # type: ignore
 
 from ibkr_report.definitions import FieldValue
+from ibkr_report.exchangerates import ExchangeRates
+from ibkr_report.report import Report
 from ibkr_report.tools import Cache
 from main import app
 
@@ -208,6 +211,62 @@ class SmokeTests(unittest.TestCase):
 
     def test_str_enum(self):
         self.assertEqual(FieldValue.TRADES, "Trades")
+
+
+@patch("ibkr_report.exchangerates.EXCHANGE_RATES_URL", TEST_URL)
+class ReportTest(unittest.TestCase):
+    def test_without_deemed_cost(self):
+        report = Report(use_deemed_acquisition_cost=False)
+        with open("test-data/data_deemed_acquisition_cost.csv", "rb") as file:
+            report.add_trades(file)
+        self.assertEqual(report.prices, Decimal("9982.0"))
+        self.assertEqual(round(report.gains, 2), Decimal("6937.94"))
+        self.assertEqual(report.losses, Decimal("0.00"))
+
+    def test_report_currency_usd(self):
+        report = Report(report_currency="USD", use_deemed_acquisition_cost=False)
+        with open("test-data/data_deemed_acquisition_cost.csv", "rb") as file:
+            report.add_trades(file)
+        self.assertEqual(round(report.prices, 2), Decimal("10957.24"))
+        self.assertEqual(round(report.gains, 2), Decimal("6826.73"))
+        self.assertEqual(round(report.losses, 2), Decimal("0.00"))
+
+
+class ExchangeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.rates = ExchangeRates(TEST_URL)
+
+    def test_self(self):
+        self.assertEqual(self.rates.exchange_rate("USD", "USD", "2015-12-01"), 1)
+        self.assertEqual(self.rates.eur_exchange_rate("EUR", "2015-12-01"), 1)
+
+    def test_sek_usd(self):
+        sek_usd = self.rates.exchange_rate("SEK", "USD", "2015-12-01")
+        self.assertLess(sek_usd, Decimal(0.2))
+
+    def test_back_and_forth(self):
+        sek_usd = self.rates.exchange_rate("SEK", "USD", "2015-12-01")
+        usd_sek = self.rates.exchange_rate("USD", "SEK", "2015-12-01")
+        should_be_one = sek_usd * usd_sek
+        self.assertEqual(should_be_one, 1)
+
+    def test_from_euro(self):
+        eur_usd = self.rates.exchange_rate("EUR", "USD", "2015-12-01")
+        self.assertGreater(eur_usd, 1)
+        self.assertEqual(eur_usd, self.rates.eur_exchange_rate("USD", "2015-12-01"))
+
+    def test_to_euro(self):
+        nok_eur = self.rates.exchange_rate("NOK", "EUR", "2010-01-01")
+        self.assertLess(nok_eur, 1)
+
+    def test_currency_does_not_exist(self):
+        with self.assertRaises(ValueError):
+            self.rates.exchange_rate("KEKW", "USD", "2015-12-01")
+
+    def test_far_in_the_future(self):
+        with self.assertRaises(ValueError):
+            self.rates.exchange_rate("USD", "CAD", "2500-01-01")
 
 
 if __name__ == "__main__":
