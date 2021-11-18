@@ -141,7 +141,7 @@ class Trade:
             rates = ExchangeRates()
             Cache.set(key=cache_key, value=rates)
 
-        return rates.exchange_rate(
+        return rates.get_rate(
             self.options.get(ReportOptions.REPORT_CURRENCY), currency, date_str
         )
 

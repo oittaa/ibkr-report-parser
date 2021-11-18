@@ -16,4 +16,5 @@ def cron() -> str:
         abort(403)
     if BUCKET_ID:
         _ = ExchangeRates(cron_job=True)
-    return "Done!"
+        return "Done!"
+    return "BUCKET_ID missing!"
