@@ -102,12 +102,12 @@ def hash_sum(filename, hash_func):
     return hash_func
 
 
-# TODO: Python 3.11+ use getLevelNamesMapping instead of _nameToLevel
 def set_logging() -> None:
     """Set logging level according to the ENV variable LOGGING_LEVEL."""
     if not current_app.debug:
-        if LOGGING_LEVEL.upper() in logging._nameToLevel:
-            current_app.logger.setLevel(logging._nameToLevel[LOGGING_LEVEL.upper()])
+        level = logging.getLevelName(LOGGING_LEVEL.upper())
+        if isinstance(level, int):
+            current_app.logger.setLevel(level)
         else:
             current_app.logger.setLevel(logging.WARNING)
     log_level = logging.getLevelName(current_app.logger.level)

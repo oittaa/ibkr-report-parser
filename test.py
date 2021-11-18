@@ -17,7 +17,6 @@ TEST_BUCKET = "test"
 TEST_URL = "file://" + os.path.abspath(os.getcwd()) + "/test-data/eurofxref-hist.zip"
 
 
-@patch("ibkr_report.cron.BUCKET_ID", TEST_BUCKET)
 @patch("ibkr_report.exchangerates.BUCKET_ID", TEST_BUCKET)
 @patch("ibkr_report.exchangerates.EXCHANGE_RATES_URL", TEST_URL)
 class SmokeTests(unittest.TestCase):
@@ -41,11 +40,18 @@ class SmokeTests(unittest.TestCase):
         response = self.app.get("/")
         self.assertEqual(response.status_code, 200)
 
+    @patch("ibkr_report.cron.BUCKET_ID", TEST_BUCKET)
     def test_get_cron(self):
         response = self.app.get("/cron")
         self.assertEqual(response.status_code, 403)
         response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"Done!")
+
+    def test_get_cron_without_bucket(self):
+        response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"BUCKET_ID missing!")
 
     def test_post_single_account(self):
         data = {"file": open("test-data/data_single_account.csv", "rb")}
@@ -238,35 +244,35 @@ class ExchangeTests(unittest.TestCase):
         cls.rates = ExchangeRates(TEST_URL)
 
     def test_self(self):
-        self.assertEqual(self.rates.exchange_rate("USD", "USD", "2015-12-01"), 1)
-        self.assertEqual(self.rates.eur_exchange_rate("EUR", "2015-12-01"), 1)
+        same_same = self.rates.get_rate("USD", "USD", "2015-12-01")
+        self.assertEqual(same_same, 1)
 
     def test_sek_usd(self):
-        sek_usd = self.rates.exchange_rate("SEK", "USD", "2015-12-01")
-        self.assertLess(sek_usd, Decimal(0.2))
+        sek_usd = self.rates.get_rate("SEK", "USD", "2015-12-01")
+        self.assertLess(sek_usd, Decimal("0.2"))
 
     def test_back_and_forth(self):
-        sek_usd = self.rates.exchange_rate("SEK", "USD", "2015-12-01")
-        usd_sek = self.rates.exchange_rate("USD", "SEK", "2015-12-01")
+        sek_usd = self.rates.get_rate("SEK", "USD", "2015-12-01")
+        usd_sek = self.rates.get_rate("USD", "SEK", "2015-12-01")
         should_be_one = sek_usd * usd_sek
         self.assertEqual(should_be_one, 1)
+        self.assertNotEqual(sek_usd, 1)
 
     def test_from_euro(self):
-        eur_usd = self.rates.exchange_rate("EUR", "USD", "2015-12-01")
+        eur_usd = self.rates.get_rate("EUR", "USD", "2015-12-01")
         self.assertGreater(eur_usd, 1)
-        self.assertEqual(eur_usd, self.rates.eur_exchange_rate("USD", "2015-12-01"))
 
     def test_to_euro(self):
-        nok_eur = self.rates.exchange_rate("NOK", "EUR", "2010-01-01")
-        self.assertLess(nok_eur, 1)
+        nok_eur = self.rates.get_rate("NOK", "EUR", "2010-01-01")
+        self.assertLess(nok_eur, Decimal("0.2"))
 
     def test_currency_does_not_exist(self):
         with self.assertRaises(ValueError):
-            self.rates.exchange_rate("KEKW", "USD", "2015-12-01")
+            self.rates.get_rate("KEKW", "USD", "2015-12-01")
 
     def test_far_in_the_future(self):
         with self.assertRaises(ValueError):
-            self.rates.exchange_rate("USD", "CAD", "2500-01-01")
+            self.rates.get_rate("USD", "CAD", "2500-01-01")
 
 
 if __name__ == "__main__":

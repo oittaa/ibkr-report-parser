@@ -42,8 +42,7 @@ class ExchangeRates:
         Storage bucket. If that's not available, downloads the official exchange rates from
         European Central Bank and builds a new dictionary from it.
         """
-        if url is None:
-            url = EXCHANGE_RATES_URL
+        url = url or EXCHANGE_RATES_URL
         if BUCKET_ID:
             today = datetime.now().strftime(_DATE)
             self.latest_rates_file = SAVED_RATES_FILE.format(today)
@@ -54,7 +53,7 @@ class ExchangeRates:
             if BUCKET_ID:
                 self._upload_rates_to_bucket()
 
-    def add_to_exchange_rate_dictionary(self, rates_file: Iterable[bytes]) -> None:
+    def add_to_exchange_rates(self, rates_file: Iterable[bytes]) -> None:
         """Builds the dictionary for the exchange rates from the downloaded CSV file
         and adds it to the dictionary.
 
@@ -66,7 +65,7 @@ class ExchangeRates:
             if items[0] == "Date":
                 # The first row should be "Date,USD,JPY,..."
                 currencies = items
-            elif currencies and re.match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
+            if currencies and re.match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
                 # And the following rows like "2015-01-20,1.1579,137.37,..."
                 date_rates = {}
                 for key, val in enumerate(items):
@@ -75,7 +74,7 @@ class ExchangeRates:
                     date_rates[currencies[key]] = val
                 if date_rates:
                     rates[items[0]] = date_rates
-
+        log.debug("Adding currency data from %d rows.", len(rates))
         self.rates = {**self.rates, **rates}
         # TODO: Python3.9+ "self.rates |= rates"
 
@@ -103,40 +102,20 @@ class ExchangeRates:
         with ZipFile(bytes_io) as rates_zip:
             for filename in rates_zip.namelist():
                 with rates_zip.open(filename) as rates_file:
-                    self.add_to_exchange_rate_dictionary(rates_file)
+                    self.add_to_exchange_rates(rates_file)
         log.debug("Parsed exchange rates from the retrieved data.")
 
-    def eur_exchange_rate(self, currency: str, date_str: str) -> Decimal:
-        """Euro exchange rate on a given day."""
-        if currency == "EUR":
-            return Decimal(1)
-
-        original_date = search_date = get_date(date_str)
-        while original_date - search_date < timedelta(MAX_BACKTRACK_DAYS):
-            date_rates = self.rates.get(search_date.strftime(_DATE), {})
-            rate = date_rates.get(currency)
-            if rate is not None:
-                return Decimal(rate)
-            search_date -= timedelta(1)
-        error_msg = "Currency {} not found near date {} - ended search at {}"
-        raise ValueError(error_msg.format(currency, original_date, search_date))
-
-    def exchange_rate(
-        self, currency_from: str, currency_to: str, date_str: str
-    ) -> Decimal:
+    def get_rate(self, currency_from: str, currency_to: str, date_str: str) -> Decimal:
         """Exchange rate between two currencies on a given day."""
+        one = Decimal(1)
         if currency_from == currency_to:
-            return Decimal(1)
-        if currency_from == "EUR":
-            return self.eur_exchange_rate(currency_to, date_str)
-        if currency_to == "EUR":
-            return Decimal(1) / self.eur_exchange_rate(currency_from, date_str)
+            return one
 
         original_date = search_date = get_date(date_str)
         while original_date - search_date < timedelta(MAX_BACKTRACK_DAYS):
             date_rates = self.rates.get(search_date.strftime(_DATE), {})
-            from_rate = date_rates.get(currency_from)
-            to_rate = date_rates.get(currency_to)
+            from_rate = one if currency_from == "EUR" else date_rates.get(currency_from)
+            to_rate = one if currency_to == "EUR" else date_rates.get(currency_to)
             if from_rate is not None and to_rate is not None:
                 return Decimal(to_rate) / Decimal(from_rate)
             search_date -= timedelta(1)
