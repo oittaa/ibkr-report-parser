@@ -49,7 +49,7 @@ Browse to http://127.0.0.1:8080/
 ## Python API
 
 ```python
-from ibkr_report.report import Report
+from ibkr_report import Report
 
 FILE_1 = "test-data/data_single_account.csv"
 FILE_2 = "test-data/data_multi_account.csv"
@@ -73,7 +73,7 @@ for item in report.details:
 ```
 
 ```python
-from ibkr_report.exchangerates import ExchangeRates
+from ibkr_report import ExchangeRates
 
 rates = ExchangeRates()
 print(rates.get_rate("EUR", "USD", "2020-06-20"))

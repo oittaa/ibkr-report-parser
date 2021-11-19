@@ -16,6 +16,10 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 from flask import Flask
 
 from ibkr_report import cron, website
+from ibkr_report.exchangerates import ExchangeRates
+from ibkr_report.report import Report
+
+__all__ = ["create_app", "ExchangeRates", "Report"]
 
 
 def create_app() -> Flask:

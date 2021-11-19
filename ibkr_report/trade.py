@@ -149,6 +149,8 @@ class Trade:
         acquisition cost is 20% of the selling price of the shares.
         If you have owned the shares you sell for at least 10 years, the deemed
         acquisition cost is 40% of the selling price of the shares.
+
+        https://www.vero.fi/en/individuals/property/investments/selling-shares/
         """
         multiplier = Decimal(0.8)
         if get_date(buy_date) <= add_years(get_date(sell_date), -10):
