@@ -25,17 +25,24 @@ class Report:
     """Total selling prices, total capital gains, and total capital losses
     calculated from the CSV files.
 
+    When calculating the amount of profit or loss, you can deduct the deemed
+    acquisition cost from the selling price of the shares, instead of deducting
+    the purchase price of the shares as well as the expenses incurred in
+    making a profit.
+
     Args:
-        file (Iterable[bytes]): The input file in CSV format
-        report_currency (str): The currency used in the output
-        use_deemed_acquisition_cost (bool): Whether to use acquisition cost
+        file (Iterable[bytes]): The input file in CSV format.
+        report_currency (str): The currency used in the output.
+        use_deemed_acquisition_cost (bool): Whether to use the deemed acquisition cost
+                                            if it benefits you.
 
     Attributes:
-        prices (Decimal): Total selling prices
-        gains (Decimal): Total capital gains
-        losses (Decimal): Total capital losses
-        details(List): Details from trades such as dates and quantities
-        options (ReportOptions): Whether to use acquisition cost, report currency
+        prices (Decimal): Total selling prices.
+        gains (Decimal): Total capital gains.
+        losses (Decimal): Total capital losses.
+        details(List): Details from trades such as dates and quantities.
+        options (ReportOptions): Report currency, whether to use the deemed
+                                 acquisition cost.
     """
 
     prices: Decimal = Decimal(0)
