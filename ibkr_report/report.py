@@ -24,6 +24,18 @@ from ibkr_report.trade import Trade
 class Report:
     """Total selling prices, total capital gains, and total capital losses
     calculated from the CSV files.
+
+    Args:
+        file (Iterable[bytes]): The input file in CSV format
+        report_currency (str): The currency used in the output
+        use_deemed_acquisition_cost (bool): Whether to use acquisition cost
+
+    Attributes:
+        prices (Decimal): Total selling prices
+        gains (Decimal): Total capital gains
+        losses (Decimal): Total capital losses
+        details(List): Details from trades such as dates and quantities
+        options (Dict): Whether to use acquisition cost, report currency
     """
 
     prices: Decimal = Decimal(0)

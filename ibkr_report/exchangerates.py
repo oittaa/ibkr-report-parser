@@ -111,15 +111,14 @@ class ExchangeRates:
 
     def get_rate(self, currency_from: str, currency_to: str, date_str: str) -> Decimal:
         """Exchange rate between two currencies on a given day."""
-        one = Decimal(1)
         if currency_from == currency_to:
-            return one
+            return Decimal(1)
 
         original_date = search_date = get_date(date_str)
         while original_date - search_date < timedelta(MAX_BACKTRACK_DAYS):
             date_rates = self.rates.get(search_date.strftime(_DATE), {})
-            from_rate = one if currency_from == "EUR" else date_rates.get(currency_from)
-            to_rate = one if currency_to == "EUR" else date_rates.get(currency_to)
+            from_rate = "1" if currency_from == "EUR" else date_rates.get(currency_from)
+            to_rate = "1" if currency_to == "EUR" else date_rates.get(currency_to)
             if from_rate is not None and to_rate is not None:
                 return Decimal(to_rate) / Decimal(from_rate)
             search_date -= timedelta(1)
