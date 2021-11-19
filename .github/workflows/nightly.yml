@@ -5,10 +5,13 @@ on:
   schedule:
     - cron: "0 6 * * *"
 
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  REPO_NAME: ${{ github.event.repository.name }}
+  REPO_NAME: oittaa/ibkr-report-parser
 
 jobs:
   lint:
