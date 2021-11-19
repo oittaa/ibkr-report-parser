@@ -13,7 +13,7 @@ from lzma import compress, decompress
 from typing import Iterable
 from urllib.error import HTTPError
 from urllib.request import urlopen
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 
 from google.cloud import exceptions, storage  # type: ignore
 
@@ -98,10 +98,15 @@ class ExchangeRates:
                 log.warning(error_msg, err.code, err.reason)
                 retries += 1
         log.debug("Successfully downloaded the latest exchange rates: %s", url)
-        with ZipFile(bytes_io) as rates_zip:
-            for filename in rates_zip.namelist():
-                with rates_zip.open(filename) as rates_file:
-                    self.add_to_exchange_rates(rates_file)
+        try:
+            with ZipFile(bytes_io) as rates_zip:
+                for filename in rates_zip.namelist():
+                    with rates_zip.open(filename) as rates_file:
+                        self.add_to_exchange_rates(rates_file)
+        except BadZipFile:
+            bytes_io.seek(0)
+            self.add_to_exchange_rates(bytes_io)
+
         log.debug("Parsed exchange rates from the retrieved data.")
 
     def get_rate(self, currency_from: str, currency_to: str, date_str: str) -> Decimal:
