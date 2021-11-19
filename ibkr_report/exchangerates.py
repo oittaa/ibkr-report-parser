@@ -68,10 +68,9 @@ class ExchangeRates:
             if currencies and re.match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
                 # And the following rows like "2015-01-20,1.1579,137.37,..."
                 date_rates = {}
-                for key, val in enumerate(items):
-                    if key == 0 or not currencies[key] or not is_number(val):
-                        continue
-                    date_rates[currencies[key]] = val
+                for cur, val in zip(currencies, items):
+                    if is_number(val):
+                        date_rates[cur] = val
                 if date_rates:
                     rates[items[0]] = date_rates
         log.debug("Adding currency data from %d rows.", len(rates))
