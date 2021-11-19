@@ -14,7 +14,9 @@ from ibkr_report.tools import Cache
 from main import app
 
 TEST_BUCKET = "test"
-TEST_URL = "file://" + os.path.abspath(os.getcwd()) + "/test-data/eurofxref-hist.zip"
+THIS_PATH = os.path.abspath(os.getcwd())
+TEST_URL = f"file://{THIS_PATH}/test-data/eurofxref-hist.zip"
+TEST_BROKEN_URL = f"file://{THIS_PATH}/test-data/eurofxref-broken.csv"
 
 
 @patch("ibkr_report.exchangerates.BUCKET_ID", TEST_BUCKET)
@@ -281,6 +283,13 @@ class ExchangeTests(unittest.TestCase):
         self.assertEqual(eur_usd, Decimal("1.1618"))
         eur_usd = self.rates.get_rate("EUR", "USD", "2021-10-25")
         self.assertEqual(eur_usd, Decimal("1.1603"))
+
+    def test_download_without_zip(self):
+        rates = ExchangeRates(TEST_BROKEN_URL)
+        eur_usd = rates.get_rate("EUR", "USD", "2021-10-26")
+        self.assertEqual(eur_usd, Decimal("1.1618"))
+        with self.assertRaises(ValueError):
+            eur_usd = rates.get_rate("EUR", "USD", "2021-10-25")
 
 
 if __name__ == "__main__":
