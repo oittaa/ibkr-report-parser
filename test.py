@@ -274,6 +274,14 @@ class ExchangeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.rates.get_rate("USD", "CAD", "2500-01-01")
 
+    def test_broken_input(self):
+        with open("test-data/eurofxref-broken.csv", "rb") as file:
+            self.rates.add_to_exchange_rates(file)
+        eur_usd = self.rates.get_rate("EUR", "USD", "2021-10-26")
+        self.assertEqual(eur_usd, Decimal("1.1618"))
+        eur_usd = self.rates.get_rate("EUR", "USD", "2021-10-25")
+        self.assertEqual(eur_usd, Decimal("1.1603"))
+
 
 if __name__ == "__main__":
     unittest.main()
