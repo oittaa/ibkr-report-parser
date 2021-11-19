@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, Tuple
+from typing import Tuple
 
 from ibkr_report.definitions import (
     _DATE,
@@ -33,14 +33,14 @@ class Trade:
     closed_quantity: Decimal = Decimal(0)
     total_selling_price: Decimal = Decimal(0)
     data: RowData
-    options: Dict
+    options: ReportOptions
 
-    def __init__(self, items: Tuple[str, ...], options: Dict) -> None:
+    def __init__(self, items: Tuple[str, ...], options: ReportOptions) -> None:
         """Initializes the Trade and calculates the total selling price from it."""
         self.options = options
         self.data = self._row_data(items)
 
-        offset = self.options[ReportOptions.OFFSET]
+        offset = self.options.offset
         self.fee = (
             decimal_cleanup(items[Field.COMMISSION_AND_FEES + offset]) / self.data.rate
         )
@@ -92,7 +92,7 @@ class Trade:
             - lot_data.quantity * self.fee / self.data.quantity
         )
         total_sell_price = abs(lot_data.quantity) * sell_price * multiplier
-        if self.options.get(ReportOptions.DEEMED_ACQUISITION_COST):
+        if self.options.deemed_acquisition_cost:
             realized = min(
                 realized,
                 self.deemed_profit(total_sell_price, buy_date, sell_date),
@@ -120,7 +120,7 @@ class Trade:
         )
 
     def _row_data(self, items: Tuple[str, ...]) -> RowData:
-        offset = self.options[ReportOptions.OFFSET]
+        offset = self.options.offset
         symbol = items[Field.SYMBOL + offset]
         date_str = items[Field.DATE_TIME + offset]
         rate = self.currency_rate(
@@ -141,9 +141,7 @@ class Trade:
             rates = ExchangeRates()
             Cache.set(key=cache_key, value=rates)
 
-        return rates.get_rate(
-            self.options.get(ReportOptions.REPORT_CURRENCY), currency, date_str
-        )
+        return rates.get_rate(self.options.report_currency, currency, date_str)
 
     @staticmethod
     def deemed_profit(sell_price: Decimal, buy_date: str, sell_date: str) -> Decimal:

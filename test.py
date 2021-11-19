@@ -72,6 +72,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["prices"], 8518.52)
         self.assertEqual(data_json["gains"], 5964.76)
         self.assertEqual(data_json["losses"], 0)
+        self.assertIsInstance(data_json["details"], list)
 
     def test_post_multi_account_json(self):
         data = {"file": open("test-data/data_multi_account.csv", "rb")}

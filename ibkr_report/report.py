@@ -6,7 +6,7 @@ from the CSV files.
 import csv
 from codecs import iterdecode
 from decimal import Decimal
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 from ibkr_report.definitions import (
     _FIELD_COUNT,
@@ -35,14 +35,14 @@ class Report:
         gains (Decimal): Total capital gains
         losses (Decimal): Total capital losses
         details(List): Details from trades such as dates and quantities
-        options (Dict): Whether to use acquisition cost, report currency
+        options (ReportOptions): Whether to use acquisition cost, report currency
     """
 
     prices: Decimal = Decimal(0)
     gains: Decimal = Decimal(0)
     losses: Decimal = Decimal(0)
     details: List[TradeDetails]
-    options: Dict
+    options: ReportOptions
     _trade: Optional[Trade] = None
 
     def __init__(
@@ -52,11 +52,11 @@ class Report:
         use_deemed_acquisition_cost: bool = True,
     ) -> None:
         self.details = []
-        self.options = {
-            ReportOptions.REPORT_CURRENCY: report_currency,
-            ReportOptions.DEEMED_ACQUISITION_COST: use_deemed_acquisition_cost,
-            ReportOptions.OFFSET: 0,
-        }
+        self.options = ReportOptions(
+            report_currency=report_currency,
+            deemed_acquisition_cost=use_deemed_acquisition_cost,
+            offset=0,
+        )
         if file:
             self.add_trades(file)
 
@@ -67,7 +67,7 @@ class Report:
                 items = tuple(items_list)
                 offset = _OFFSET_DICT.get(items)
                 if offset is not None:
-                    self.options[ReportOptions.OFFSET] = offset
+                    self.options.offset = offset
                     self._trade = None
                     continue
                 if self.is_stock_or_options_trade(items):
@@ -78,7 +78,7 @@ class Report:
     def is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
         """Checks whether the current row is part of a trade or not."""
         if (
-            len(items) == _FIELD_COUNT + self.options[ReportOptions.OFFSET]
+            len(items) == _FIELD_COUNT + self.options.offset
             and items[Field.TRADES] == FieldValue.TRADES
             and items[Field.HEADER] == FieldValue.HEADER
             and items[Field.DATA_DISCRIMINATOR]
