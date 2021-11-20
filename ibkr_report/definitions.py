@@ -7,7 +7,10 @@ from enum import Enum, IntEnum, unique
 from typing import Dict
 
 TITLE = os.getenv("TITLE", "IBKR Report Parser")
-BUCKET_ID = os.getenv("BUCKET_ID", None)
+BUCKET_NAME = os.getenv("BUCKET_NAME", None)
+BUCKET_ID = os.getenv("BUCKET_ID", BUCKET_NAME)
+STORAGE_TYPE = os.getenv("STORAGE_TYPE", "disabled").lower()
+STORAGE_DIR = os.getenv("STORAGE_DIR", ".ibkr_storage")
 DEBUG = bool(os.getenv("DEBUG"))
 LOGGING_LEVEL = os.getenv("LOGGING_LEVEL", "INFO")
 _DEFAULT_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip"
@@ -86,6 +89,16 @@ class FieldValue(StrEnum):
 
     TRADES = "Trades"
     HEADER = "Data"
+
+
+@unique
+class StorageType(StrEnum):
+    """Storage type"""
+
+    DISABLED = "disabled"
+    AWS = "aws"
+    GCP = "gcp"
+    LOCAL = "local"
 
 
 @dataclass

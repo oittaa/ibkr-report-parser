@@ -13,12 +13,12 @@ WORKDIR $APP_HOME
 COPY main.py pyproject.toml setup.py MANIFEST.in README.md LICENSE ./
 COPY ibkr_report/ ./ibkr_report/
 COPY bin/ ./bin/
-RUN pip3 install --no-cache-dir .
+RUN pip3 install --no-cache-dir .[aws,docker,gcp] --use-feature=in-tree-build
 
 FROM base AS test
 COPY test-data/ ./test-data/
 COPY test.py requirements-dev.txt ./
-RUN pip3 install --no-cache-dir -r requirements-dev.txt && \
+RUN pip3 install --no-cache-dir -r requirements-dev.txt --use-feature=in-tree-build && \
     coverage run test.py && \
     coverage report -m && \
     coverage xml
