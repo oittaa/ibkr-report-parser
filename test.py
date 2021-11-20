@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 from gcp_storage_emulator.server import create_server  # type: ignore
 from moto import mock_s3  # type: ignore
 
-from ibkr_report.definitions import FieldValue
+from ibkr_report.definitions import FieldValue, StorageType
 from ibkr_report.exchangerates import ExchangeRates
 from ibkr_report.report import Report
 from ibkr_report.storage import get_storage
@@ -341,35 +341,35 @@ class StorageTests(unittest.TestCase):
 
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_google_cloud_storage_save_and_load(self):
-        storage = get_storage("gcp")
+        storage = get_storage(StorageType.GCP)
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_gcp_load_not_existing(self):
-        storage = get_storage("gcp")
+        storage = get_storage(StorageType.GCP)
         self.assertEqual(storage.load(), {})
 
     @mock_s3
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_amazon_s3_save_and_load(self):
-        storage = get_storage("aws")
+        storage = get_storage(StorageType.AWS)
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
     @mock_s3
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_s3_load_not_existing(self):
-        storage = get_storage("aws")
+        storage = get_storage(StorageType.AWS)
         self.assertEqual(storage.load(), {})
 
     def test_local_s3_save_and_load(self):
-        storage = get_storage("local", storage_dir=self.storage_dir)
+        storage = get_storage(StorageType.LOCAL, storage_dir=self.storage_dir)
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
     def test_local_load_not_existing(self):
-        storage = get_storage("local", storage_dir=self.storage_dir)
+        storage = get_storage(StorageType.LOCAL, storage_dir=self.storage_dir)
         self.assertEqual(storage.load(), {})
 
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)

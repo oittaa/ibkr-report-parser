@@ -144,19 +144,19 @@ class LocalStorage(Storage):
 
 
 def get_storage(
-    storage_type: str = None, bucket_id: str = None, storage_dir: str = None
+    storage_type: StorageType = None, bucket_id: str = None, storage_dir: str = None
 ) -> Storage:
     """Returns a storage backend."""
     if storage_type is None:
-        storage_type = STORAGE_TYPE
+        storage_type = StorageType(STORAGE_TYPE)
     if bucket_id is None:
         bucket_id = BUCKET_ID
     if storage_dir is None:
         storage_dir = STORAGE_DIR
 
-    if storage_type == StorageType.AWS:
+    if storage_type is StorageType.AWS:
         return AmazonS3(bucket_id)
-    if storage_type == StorageType.GCP:
+    if storage_type is StorageType.GCP:
         return GoogleCloudStorage(bucket_id)
 
     # Past the cloud storage options, fail if bucket_id is set
@@ -164,9 +164,9 @@ def get_storage(
         raise ValueError(
             f"[BUCKET_ID|BUCKET_NAME] set as {bucket_id!r}, but [STORAGE_TYPE] is not set."
         )
-    if storage_type == StorageType.LOCAL:
+    if storage_type is StorageType.LOCAL:
         return LocalStorage(storage_dir)
-    if storage_type == StorageType.DISABLED:
+    if storage_type is StorageType.DISABLED:
         return Storage()
 
     raise NotImplementedError(f"Not implemented: {storage_type!r}")
