@@ -21,6 +21,7 @@
 .editorconfig
 .flake8
 .github/
+.vscode/
 Dockerfile
 LICENSE
 README.md

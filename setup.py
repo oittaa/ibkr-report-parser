@@ -54,10 +54,11 @@ setup(
     setup_requires=[
         "wheel",
     ],
-    install_requires=[
-        "flask==2.0.2",
-        "google-cloud-storage==1.43.0",
-        "gunicorn==20.1.0",
-    ],
+    install_requires=["flask==2.0.2"],
+    extras_require={
+        "aws": ["boto3==1.20.10"],
+        "docker": ["gunicorn==20.1.0"],
+        "gcp": ["google-cloud-storage==1.43.0"],
+    },
     python_requires=">=3.7",
 )

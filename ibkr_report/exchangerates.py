@@ -1,33 +1,28 @@
 """Euro foreign exchange rates from European Central Bank"""
 
 import csv
-import json
 import logging
-import os
 import re
 from codecs import iterdecode
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from io import BytesIO
-from lzma import compress, decompress
 from typing import Iterable
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
 
-from google.cloud import exceptions, storage  # type: ignore
 
 from ibkr_report.definitions import (
     _DATE,
-    BUCKET_ID,
     EXCHANGE_RATES_URL,
     MAX_BACKTRACK_DAYS,
     MAX_HTTP_RETRIES,
-    SAVED_RATES_FILE,
     CurrencyDict,
+    StorageType,
 )
 from ibkr_report.tools import get_date, is_number
-
+from ibkr_report.storage import get_storage
 
 log = logging.getLogger(__name__)
 
@@ -35,23 +30,20 @@ log = logging.getLogger(__name__)
 class ExchangeRates:
     """Euro foreign exchange rates"""
 
-    rates: CurrencyDict = {}
+    rates: CurrencyDict
 
-    def __init__(self, url: str = None, cron_job: bool = False) -> None:
-        """Tries to fetch a previously built exchange rate dictionary from a Google Cloud
-        Storage bucket. If that's not available, downloads the official exchange rates from
-        European Central Bank and builds a new dictionary from it.
+    def __init__(self, url: str = None, storage_type: StorageType = None) -> None:
+        """Tries to fetch a previously built exchange rate dictionary from a
+        Storage backend. If that's not available, downloads the official
+        exchange rates from European Central Bank and builds a new dictionary
+        from it.
         """
         url = url or EXCHANGE_RATES_URL
-        if BUCKET_ID:
-            today = datetime.now().strftime(_DATE)
-            self.latest_rates_file = SAVED_RATES_FILE.format(today)
-            self._init_storage_client()
-            self._download_rates_from_bucket(cron_job)
+        self.storage = get_storage(storage_type=storage_type)
+        self.rates = self.storage.load()
         if not self.rates:
             self.download_official_rates(url)
-            if BUCKET_ID:
-                self._upload_rates_to_bucket()
+            self.storage.save(self.rates)
 
     def add_to_exchange_rates(self, rates_file: Iterable[bytes]) -> None:
         """Builds the dictionary for the exchange rates from the downloaded CSV file
@@ -126,40 +118,3 @@ class ExchangeRates:
         raise ValueError(
             error_msg.format(currency_from, currency_to, original_date, search_date)
         )
-
-    def _init_storage_client(self) -> None:
-        if os.getenv("STORAGE_EMULATOR_HOST"):
-            # Local testing etc.
-            client = storage.Client.create_anonymous_client()
-            client.project = "<none>"
-        else:
-            client = storage.Client()
-        self.client = client
-        try:
-            self.bucket = self.client.get_bucket(BUCKET_ID)
-        except exceptions.NotFound:
-            self.bucket = self.client.create_bucket(BUCKET_ID)
-
-    def _upload_rates_to_bucket(self) -> None:
-        blob = self.bucket.blob(self.latest_rates_file)
-        blob.upload_from_string(self.encode(self.rates))
-
-    def _download_rates_from_bucket(self, cron_job: bool = False) -> None:
-        blob = self.bucket.get_blob(self.latest_rates_file)
-        if not blob and not cron_job:
-            # Try to use exchange rates from the previous day if not in a cron job.
-            yesterday = (datetime.now() - timedelta(1)).strftime(_DATE)
-            previous_rates_file = SAVED_RATES_FILE.format(yesterday)
-            blob = self.bucket.get_blob(previous_rates_file)
-        if blob:
-            self.rates = self.decode(blob.download_as_bytes())
-
-    @staticmethod
-    def encode(data: CurrencyDict) -> bytes:
-        """Encode dictionary so it can be saved."""
-        return compress(json.dumps(data).encode("utf-8"))
-
-    @staticmethod
-    def decode(data: bytes) -> CurrencyDict:
-        """Decode saved dictionary."""
-        return json.loads(decompress(data).decode("utf-8"))

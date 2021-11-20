@@ -2,14 +2,18 @@ import json
 import os
 import unittest
 from decimal import Decimal
+from pathlib import Path
+from tempfile import mkdtemp
 from unittest.mock import patch
 from urllib.error import HTTPError
 
 from gcp_storage_emulator.server import create_server  # type: ignore
+from moto import mock_s3  # type: ignore
 
-from ibkr_report.definitions import FieldValue
+from ibkr_report.definitions import FieldValue, StorageType
 from ibkr_report.exchangerates import ExchangeRates
 from ibkr_report.report import Report
+from ibkr_report.storage import get_storage
 from ibkr_report.tools import Cache
 from main import app
 
@@ -19,7 +23,6 @@ TEST_URL = f"file://{THIS_PATH}/test-data/eurofxref-hist.zip"
 TEST_BROKEN_URL = f"file://{THIS_PATH}/test-data/eurofxref-broken.csv"
 
 
-@patch("ibkr_report.exchangerates.BUCKET_ID", TEST_BUCKET)
 @patch("ibkr_report.exchangerates.EXCHANGE_RATES_URL", TEST_URL)
 class SmokeTests(unittest.TestCase):
     @classmethod
@@ -42,7 +45,9 @@ class SmokeTests(unittest.TestCase):
         response = self.app.get("/")
         self.assertEqual(response.status_code, 200)
 
+    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     @patch("ibkr_report.cron.BUCKET_ID", TEST_BUCKET)
+    @patch("ibkr_report.storage.STORAGE_TYPE", "gcp")
     def test_get_cron(self):
         response = self.app.get("/cron")
         self.assertEqual(response.status_code, 403)
@@ -52,8 +57,16 @@ class SmokeTests(unittest.TestCase):
 
     def test_get_cron_without_bucket(self):
         response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 500)
         self.assertEqual(response.data, b"BUCKET_ID missing!")
+
+    @patch("ibkr_report.cron.BUCKET_ID", TEST_BUCKET)
+    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
+    def test_get_cron_with_storage_disabled(self):
+        response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
+        self.assertEqual(response.status_code, 500)
+        msg = b"[BUCKET_ID|BUCKET_NAME] set as 'test', but [STORAGE_TYPE] is not set."
+        self.assertEqual(response.data, msg)
 
     def test_post_single_account(self):
         data = {"file": open("test-data/data_single_account.csv", "rb")}
@@ -195,10 +208,12 @@ class SmokeTests(unittest.TestCase):
             )
 
     @patch("ibkr_report.tools._MAXCACHE", 0)
+    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
+    @patch("ibkr_report.storage.STORAGE_TYPE", "gcp")
+    @patch("ibkr_report.cron.BUCKET_ID", TEST_BUCKET)
     def test_caching_filled_from_cron(self):
         self._server.wipe()
         Cache.clear()
-
         response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
         self.assertEqual(response.status_code, 200)
         data = {"file": open("test-data/data_single_account.csv", "rb")}
@@ -291,6 +306,75 @@ class ExchangeTests(unittest.TestCase):
         self.assertEqual(eur_usd, Decimal("1.1618"))
         with self.assertRaises(ValueError):
             eur_usd = rates.get_rate("EUR", "USD", "2021-10-25")
+
+
+class StorageTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.test_data = {"2021-10-25": {"USD": "1.1603"}}
+        os.environ["STORAGE_EMULATOR_HOST"] = "http://localhost:9023"
+        cls._server = create_server(
+            "localhost", 9023, in_memory=True, default_bucket=TEST_BUCKET
+        )
+        cls._server.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._server.stop()
+
+    def setUp(self):
+        self.storage_dir = Path(mkdtemp())
+
+    def tearDown(self):
+        for item in self.storage_dir.iterdir():
+            item.unlink()
+        self.storage_dir.rmdir()
+
+    def test_non_existent_type(self):
+        with self.assertRaises(NotImplementedError):
+            get_storage("not-implemented")
+
+    def test_disabled_storage(self):
+        storage = get_storage()
+        storage.save(self.test_data)
+        self.assertEqual(storage.load(), {})
+
+    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
+    def test_google_cloud_storage_save_and_load(self):
+        storage = get_storage(StorageType.GCP)
+        storage.save(self.test_data)
+        self.assertEqual(storage.load(), self.test_data)
+
+    def test_gcp_load_not_existing(self):
+        storage = get_storage(StorageType.GCP, bucket_id=TEST_BUCKET)
+        self.assertEqual(storage.load(), {})
+
+    @mock_s3
+    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
+    def test_amazon_s3_save_and_load(self):
+        storage = get_storage(StorageType.AWS)
+        storage.save(self.test_data)
+        self.assertEqual(storage.load(), self.test_data)
+
+    @mock_s3
+    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
+    def test_s3_load_not_existing(self):
+        storage = get_storage(StorageType.AWS)
+        self.assertEqual(storage.load(), {})
+
+    def test_local_s3_save_and_load(self):
+        storage = get_storage(StorageType.LOCAL, storage_dir=self.storage_dir)
+        storage.save(self.test_data)
+        self.assertEqual(storage.load(), self.test_data)
+
+    def test_local_load_not_existing(self):
+        storage = get_storage(StorageType.LOCAL, storage_dir=self.storage_dir)
+        self.assertEqual(storage.load(), {})
+
+    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
+    def test_bucket_defined_but_type_not_defined(self):
+        with self.assertRaises(ValueError):
+            get_storage()
 
 
 if __name__ == "__main__":

@@ -18,8 +18,9 @@ from flask import Flask
 from ibkr_report import cron, website
 from ibkr_report.exchangerates import ExchangeRates
 from ibkr_report.report import Report
+from ibkr_report.storage import get_storage
 
-__all__ = ["create_app", "ExchangeRates", "Report"]
+__all__ = ["create_app", "get_storage", "ExchangeRates", "Report"]
 
 
 def create_app() -> Flask:
