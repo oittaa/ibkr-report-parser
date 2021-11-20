@@ -43,7 +43,7 @@ class ExchangeRates:
         self.rates = self.storage.load()
         if not self.rates:
             self.download_official_rates(url)
-            self.storage.save(self.rates)
+            self.storage.save(content=self.rates)
 
     def add_to_exchange_rates(self, rates_file: Iterable[bytes]) -> None:
         """Builds the dictionary for the exchange rates from the downloaded CSV file

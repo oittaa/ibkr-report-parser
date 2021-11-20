@@ -351,18 +351,18 @@ class StorageTests(unittest.TestCase):
 
     @mock_s3
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
-    def test_amazon_s3_save_and_load(self):
+    def test_aws_s3_save_and_load(self):
         storage = get_storage(StorageType.AWS)
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
     @mock_s3
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
-    def test_s3_load_not_existing(self):
+    def test_aws_s3_load_not_existing(self):
         storage = get_storage(StorageType.AWS)
         self.assertEqual(storage.load(), {})
 
-    def test_local_s3_save_and_load(self):
+    def test_local_save_and_load(self):
         storage = get_storage(StorageType.LOCAL, storage_dir=self.storage_dir)
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
@@ -370,6 +370,12 @@ class StorageTests(unittest.TestCase):
     def test_local_load_not_existing(self):
         storage = get_storage(StorageType.LOCAL, storage_dir=self.storage_dir)
         self.assertEqual(storage.load(), {})
+
+    def test_local_custom_file_save_and_load(self):
+        storage = get_storage(StorageType.LOCAL, storage_dir=self.storage_dir)
+        storage.save(self.test_data, "my-test-file")
+        self.assertEqual(storage.load("my-test-file"), self.test_data)
+        self.assertEqual(storage.load("not-existing"), {})
 
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_bucket_defined_but_type_not_defined(self):
