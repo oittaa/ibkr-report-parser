@@ -345,9 +345,8 @@ class StorageTests(unittest.TestCase):
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
-    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_gcp_load_not_existing(self):
-        storage = get_storage(StorageType.GCP)
+        storage = get_storage(StorageType.GCP, bucket_id=TEST_BUCKET)
         self.assertEqual(storage.load(), {})
 
     @mock_s3
