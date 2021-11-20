@@ -26,13 +26,13 @@ class Storage:
 
     def save(self, content: CurrencyDict, file_name: str = None) -> None:
         """Save CurrencyDict to storage."""
-        file_name = file_name or self.get_rates_file_name()
+        file_name = file_name or self.get_file_name()
         log.debug("Save to '%s' using %s backend.", file_name, self.name)
         self._save(content, file_name)
 
     def load(self, file_name: str = None) -> CurrencyDict:
         """Load CurrencyDict from storage."""
-        file_name = file_name or self.get_rates_file_name()
+        file_name = file_name or self.get_file_name()
         log.debug("Load '%s' using %s backend.", file_name, self.name)
         return self._load(file_name) or {}
 
@@ -48,10 +48,14 @@ class Storage:
         return self.__class__.__name__
 
     @staticmethod
-    def get_rates_file_name() -> str:
-        """Generate file name based on the current date."""
-        today = datetime.now().strftime(_DATE)
-        return SAVED_RATES_FILE.format(today)
+    def get_file_name(identifier: str = None) -> str:
+        """Generate a file name based on the current date.
+
+        Optionally you can give your own identifier that distinguishes files.
+        """
+        if identifier is None:
+            identifier = datetime.now().strftime(_DATE)
+        return SAVED_RATES_FILE.format(identifier)
 
     @staticmethod
     def encode(data: CurrencyDict) -> bytes:

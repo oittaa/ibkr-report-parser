@@ -377,6 +377,12 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(storage.load("my-test-file"), self.test_data)
         self.assertEqual(storage.load("not-existing"), {})
 
+    def test_generating_file_names(self):
+        storage = get_storage()
+        name1 = storage.get_file_name("test1")
+        name2 = storage.get_file_name("test2")
+        self.assertNotEqual(name1, name2)
+
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_bucket_defined_but_type_not_defined(self):
         with self.assertRaises(ValueError):
