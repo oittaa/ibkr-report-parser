@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 from lzma import compress, decompress
 from pathlib import Path
+from typing import Type
 
 from ibkr_report.definitions import (
     _DATE,
@@ -79,7 +80,7 @@ class AmazonS3(Storage):
         boto3 = importlib.import_module("boto3")
 
         log.debug("Using %s backend.", self.name)
-        self.bucket_id = bucket_id
+        self.bucket_id = bucket_id or BUCKET_ID
         self.aws_s3 = boto3.resource("s3")  # type: ignore
         bucket = self.aws_s3.Bucket(self.bucket_id)
         bucket.create()
@@ -104,7 +105,7 @@ class GoogleCloudStorage(Storage):
         exceptions = importlib.import_module("google.cloud.exceptions")
 
         log.debug("Using %s backend.", self.name)
-        self.bucket_id = bucket_id
+        self.bucket_id = bucket_id or BUCKET_ID
         if os.getenv("STORAGE_EMULATOR_HOST"):
             # Local testing etc.
             client = storage.Client.create_anonymous_client()  # type: ignore
@@ -132,7 +133,7 @@ class LocalStorage(Storage):
 
     def __init__(self, storage_dir: str) -> None:
         log.debug("Using %s backend.", self.name)
-        self.storage_dir = Path(storage_dir)
+        self.storage_dir = Path(storage_dir or STORAGE_DIR)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
     def _save(self, content: CurrencyDict, file_name: str) -> None:
@@ -147,30 +148,25 @@ class LocalStorage(Storage):
             return {}
 
 
-def get_storage(
-    storage_type: StorageType = None, bucket_id: str = None, storage_dir: str = None
-) -> Storage:
+def get_storage(storage_type: StorageType = None) -> Type[Storage]:
     """Returns a storage backend."""
     if storage_type is None:
         storage_type = StorageType(STORAGE_TYPE)
-    if bucket_id is None:
-        bucket_id = BUCKET_ID
-    if storage_dir is None:
-        storage_dir = STORAGE_DIR
 
     if storage_type is StorageType.AWS:
-        return AmazonS3(bucket_id)
+        return AmazonS3
     if storage_type is StorageType.GCP:
-        return GoogleCloudStorage(bucket_id)
+        return GoogleCloudStorage
 
-    # Past the cloud storage options, fail if bucket_id is set
-    if bucket_id:
+    # Past the cloud storage options, fail if BUCKET_ID is set
+    if BUCKET_ID:
         raise ValueError(
-            f"[BUCKET_ID|BUCKET_NAME] set as {bucket_id!r}, but [STORAGE_TYPE] is not set."
+            f"[BUCKET_ID] set as {BUCKET_ID!r}, but [STORAGE_TYPE] is set as {STORAGE_TYPE!r}."
+            " With a bucket [STORAGE_TYPE] needs to be set as [AWS|GCP]."
         )
     if storage_type is StorageType.LOCAL:
-        return LocalStorage(storage_dir)
+        return LocalStorage
     if storage_type is StorageType.DISABLED:
-        return StorageDisabled()
+        return StorageDisabled
 
     raise NotImplementedError(f"Not implemented: {storage_type!r}")

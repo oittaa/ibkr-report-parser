@@ -65,7 +65,10 @@ class SmokeTests(unittest.TestCase):
     def test_get_cron_with_storage_disabled(self):
         response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
         self.assertEqual(response.status_code, 500)
-        msg = b"[BUCKET_ID|BUCKET_NAME] set as 'test', but [STORAGE_TYPE] is not set."
+        msg = (
+            b"[BUCKET_ID] set as 'test', but [STORAGE_TYPE] is set as 'disabled'."
+            + b" With a bucket [STORAGE_TYPE] needs to be set as [AWS|GCP]."
+        )
         self.assertEqual(response.data, msg)
 
     def test_post_single_account(self):
@@ -335,50 +338,50 @@ class StorageTests(unittest.TestCase):
             get_storage("not-implemented")
 
     def test_disabled_storage(self):
-        storage = get_storage()
+        storage = get_storage()()
         storage.save(self.test_data)
         self.assertEqual(storage.load(), {})
 
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_google_cloud_storage_save_and_load(self):
-        storage = get_storage(StorageType.GCP)
+        storage = get_storage(StorageType.GCP)()
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
     def test_gcp_load_not_existing(self):
-        storage = get_storage(StorageType.GCP, bucket_id=TEST_BUCKET)
+        storage = get_storage(StorageType.GCP)(bucket_id=TEST_BUCKET)
         self.assertEqual(storage.load(), {})
 
     @mock_s3
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_aws_s3_save_and_load(self):
-        storage = get_storage(StorageType.AWS)
+        storage = get_storage(StorageType.AWS)()
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
     @mock_s3
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_aws_s3_load_not_existing(self):
-        storage = get_storage(StorageType.AWS)
+        storage = get_storage(StorageType.AWS)()
         self.assertEqual(storage.load(), {})
 
     def test_local_save_and_load(self):
-        storage = get_storage(StorageType.LOCAL, storage_dir=self.storage_dir)
+        storage = get_storage(StorageType.LOCAL)(storage_dir=self.storage_dir)
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
     def test_local_load_not_existing(self):
-        storage = get_storage(StorageType.LOCAL, storage_dir=self.storage_dir)
+        storage = get_storage(StorageType.LOCAL)(storage_dir=self.storage_dir)
         self.assertEqual(storage.load(), {})
 
     def test_local_custom_file_save_and_load(self):
-        storage = get_storage(StorageType.LOCAL, storage_dir=self.storage_dir)
+        storage = get_storage(StorageType.LOCAL)(storage_dir=self.storage_dir)
         storage.save(self.test_data, "my-test-file")
         self.assertEqual(storage.load("my-test-file"), self.test_data)
         self.assertEqual(storage.load("not-existing"), {})
 
     def test_generating_file_names(self):
-        storage = get_storage()
+        storage = get_storage()()
         name1 = storage.get_file_name("test1")
         name2 = storage.get_file_name("test2")
         self.assertNotEqual(name1, name2)

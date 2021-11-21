@@ -32,14 +32,18 @@ class ExchangeRates:
 
     rates: CurrencyDict
 
-    def __init__(self, url: str = None, storage_type: StorageType = None) -> None:
+    def __init__(
+        self, url: str = None, storage_type: StorageType = None, **kwargs
+    ) -> None:
         """Tries to fetch a previously built exchange rate dictionary from a
         Storage backend. If that's not available, downloads the official
         exchange rates from European Central Bank and builds a new dictionary
         from it.
         """
         url = url or EXCHANGE_RATES_URL
-        self.storage = get_storage(storage_type=storage_type)
+        storage = get_storage(storage_type=storage_type)
+        # TODO: mypy 0.910 https://github.com/python/mypy/pull/9629
+        self.storage = storage(**kwargs)  # type: ignore
         self.rates = self.storage.load()
         if not self.rates:
             self.download_official_rates(url)
