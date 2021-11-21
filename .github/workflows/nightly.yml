@@ -44,6 +44,9 @@ jobs:
           flake8 . --count --max-complexity=10 --max-line-length=127 --statistics
       - name: Mypy
         run: mypy
+      - name: Pylint
+        if: matrix.python-version != '3.11-dev'
+        run: pylint --exit-zero main.py ibkr_report
       - name: Run tests with Coverage
         run: |
           coverage run -m unittest discover
