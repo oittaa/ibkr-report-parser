@@ -118,7 +118,7 @@ class ExchangeRates:
             if from_rate is not None and to_rate is not None:
                 return Decimal(to_rate) / Decimal(from_rate)
             search_date -= timedelta(1)
-        error_msg = "Currencies {} and {} not found near date {} - ended search at {}"
         raise ValueError(
-            error_msg.format(currency_from, currency_to, original_date, search_date)
+            f"Currencies {currency_from} and {currency_to} not found near "
+            f"date {original_date} - ended search at {search_date}"
         )
