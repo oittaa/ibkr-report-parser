@@ -4,6 +4,7 @@ import importlib
 import json
 import logging
 import os
+from abc import ABC, abstractmethod
 from datetime import datetime
 from lzma import compress, decompress
 from pathlib import Path
@@ -22,7 +23,7 @@ from ibkr_report.definitions import (
 log = logging.getLogger(__name__)
 
 
-class Storage:
+class Storage(ABC):
     """Storage class to save exchange rates."""
 
     def save(self, content: CurrencyDict, filename: str = None) -> None:
@@ -35,13 +36,15 @@ class Storage:
         """Load CurrencyDict from storage."""
         filename = filename or self.get_filename()
         log.debug("Load '%s' using %s backend.", filename, self.name)
-        return self._load(filename) or {}
+        return self._load(filename)
 
+    @abstractmethod
     def _save(self, content: CurrencyDict, filename: str) -> None:
-        pass
+        raise NotImplementedError()
 
+    @abstractmethod
     def _load(self, filename: str) -> CurrencyDict:
-        pass
+        raise NotImplementedError()
 
     @property
     def name(self) -> str:
@@ -71,6 +74,12 @@ class Storage:
 
 class StorageDisabled(Storage):
     """Storage backend that doesn't do anything."""
+
+    def _save(self, content: CurrencyDict, filename: str) -> None:
+        pass
+
+    def _load(self, filename: str) -> CurrencyDict:
+        return {}
 
 
 class AmazonS3(Storage):
