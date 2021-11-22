@@ -25,22 +25,22 @@ log = logging.getLogger(__name__)
 class Storage:
     """Storage class to save exchange rates."""
 
-    def save(self, content: CurrencyDict, file_name: str = None) -> None:
+    def save(self, content: CurrencyDict, filename: str = None) -> None:
         """Save CurrencyDict to storage."""
-        file_name = file_name or self.get_file_name()
-        log.debug("Save to '%s' using %s backend.", file_name, self.name)
-        self._save(content, file_name)
+        filename = filename or self.get_filename()
+        log.debug("Save to '%s' using %s backend.", filename, self.name)
+        self._save(content, filename)
 
-    def load(self, file_name: str = None) -> CurrencyDict:
+    def load(self, filename: str = None) -> CurrencyDict:
         """Load CurrencyDict from storage."""
-        file_name = file_name or self.get_file_name()
-        log.debug("Load '%s' using %s backend.", file_name, self.name)
-        return self._load(file_name) or {}
+        filename = filename or self.get_filename()
+        log.debug("Load '%s' using %s backend.", filename, self.name)
+        return self._load(filename) or {}
 
-    def _save(self, content: CurrencyDict, file_name: str) -> None:
+    def _save(self, content: CurrencyDict, filename: str) -> None:
         pass
 
-    def _load(self, file_name: str) -> CurrencyDict:
+    def _load(self, filename: str) -> CurrencyDict:
         pass
 
     @property
@@ -49,8 +49,8 @@ class Storage:
         return self.__class__.__name__
 
     @staticmethod
-    def get_file_name(identifier: str = None) -> str:
-        """Generate a file name based on the current date.
+    def get_filename(identifier: str = None) -> str:
+        """Generate a filename based on the current date.
 
         Optionally you can give your own identifier that distinguishes files.
         """
@@ -85,12 +85,12 @@ class AmazonS3(Storage):
         bucket = self.aws_s3.Bucket(self.bucket_id)
         bucket.create()
 
-    def _save(self, content: CurrencyDict, file_name: str) -> None:
-        obj = self.aws_s3.Object(self.bucket_id, file_name)
+    def _save(self, content: CurrencyDict, filename: str) -> None:
+        obj = self.aws_s3.Object(self.bucket_id, filename)
         obj.put(Body=self.encode(content))
 
-    def _load(self, file_name: str) -> CurrencyDict:
-        obj = self.aws_s3.Object(self.bucket_id, file_name)
+    def _load(self, filename: str) -> CurrencyDict:
+        obj = self.aws_s3.Object(self.bucket_id, filename)
         try:
             return self.decode(obj.get()["Body"].read())
         except self.aws_s3.meta.client.exceptions.NoSuchKey:
@@ -117,12 +117,12 @@ class GoogleCloudStorage(Storage):
         except exceptions.NotFound:  # type: ignore
             self.bucket = client.create_bucket(self.bucket_id)
 
-    def _save(self, content: CurrencyDict, file_name: str) -> None:
-        blob = self.bucket.blob(file_name)
+    def _save(self, content: CurrencyDict, filename: str) -> None:
+        blob = self.bucket.blob(filename)
         blob.upload_from_string(self.encode(content))
 
-    def _load(self, file_name: str) -> CurrencyDict:
-        blob = self.bucket.get_blob(file_name)
+    def _load(self, filename: str) -> CurrencyDict:
+        blob = self.bucket.get_blob(filename)
         if blob:
             return self.decode(blob.download_as_bytes())
         return {}
@@ -136,13 +136,13 @@ class LocalStorage(Storage):
         self.storage_dir = Path(storage_dir or STORAGE_DIR)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
-    def _save(self, content: CurrencyDict, file_name: str) -> None:
-        with open(self.storage_dir.joinpath(file_name), "wb") as file:
+    def _save(self, content: CurrencyDict, filename: str) -> None:
+        with open(self.storage_dir.joinpath(filename), "wb") as file:
             file.write(self.encode(content))
 
-    def _load(self, file_name: str) -> CurrencyDict:
+    def _load(self, filename: str) -> CurrencyDict:
         try:
-            with open(self.storage_dir.joinpath(file_name), "rb") as file:
+            with open(self.storage_dir.joinpath(filename), "rb") as file:
                 return self.decode(file.read())
         except FileNotFoundError:
             return {}
