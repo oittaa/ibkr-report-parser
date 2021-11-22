@@ -379,6 +379,8 @@ class StorageTests(unittest.TestCase):
         storage.save(self.test_data, "my-test-file")
         self.assertEqual(storage.load("my-test-file"), self.test_data)
         self.assertEqual(storage.load("not-existing"), {})
+        full_path = self.storage_dir.joinpath("my-test-file")
+        self.assertTrue(full_path.is_file())
 
     def test_generating_filenames(self):
         storage = get_storage()()
