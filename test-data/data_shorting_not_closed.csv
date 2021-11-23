@@ -1,0 +1,4 @@
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code
+Trades,Data,Order,Stocks,USD,AMC,"2021-06-03, 06:08:56",-,-100,73.54,7354,-1.0494054,-7352.9505946,0,O
+Trades,Data,Trade,Stocks,USD,AMC,"2021-06-03, 06:08:56",ISLAND,-100,73.54,7354,-1.0494054,-7352.9505946,0,O
+Trades,SubTotal,,Stocks,USD,AMC,,,-100,,7354,-1.0494054,-7352.9505946,0,

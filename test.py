@@ -113,6 +113,15 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["gains"], 2644.18)
         self.assertEqual(data_json["losses"], 0.00)
 
+    def test_post_shorting_not_closed(self):
+        data = {"file": open("test-data/data_shorting_not_closed.csv", "rb")}
+        response = self.app.post("/result?json", data=data)
+        self.assertEqual(response.status_code, 200)
+        data_json = json.loads(response.data)
+        self.assertEqual(data_json["prices"], 6034.30)
+        self.assertEqual(data_json["gains"], 0.00)
+        self.assertEqual(data_json["losses"], 0.00)
+
     def test_post_deemed_acquisition_cost(self):
         data = {"file": open("test-data/data_deemed_acquisition_cost.csv", "rb")}
         response = self.app.post("/result?json", data=data)
