@@ -7,11 +7,10 @@ from codecs import iterdecode
 from datetime import timedelta
 from decimal import Decimal
 from io import BytesIO
-from typing import Iterable
+from typing import Dict, Iterable, List
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
-
 
 from ibkr_report.definitions import (
     _DATE,
@@ -60,13 +59,10 @@ class ExchangeRates:
         for items in csv.reader(iterdecode(rates_file, "utf-8")):
             if items[0] == "Date":
                 # The first row should be "Date,USD,JPY,..."
-                currencies = items
+                currencies = items[1:]
             if currencies and re.match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
                 # And the following rows like "2015-01-20,1.1579,137.37,..."
-                date_rates = {}
-                for cur, val in zip(currencies, items):
-                    if is_number(val):
-                        date_rates[cur] = val
+                date_rates = self.get_date_rates(currencies, items[1:])
                 if date_rates:
                     rates[items[0]] = date_rates
         log.debug("Adding currency data from %d rows.", len(rates))
@@ -94,6 +90,10 @@ class ExchangeRates:
                 log.warning(error_msg, err.code, err.reason)
                 retries += 1
         log.debug("Successfully downloaded the latest exchange rates: %s", url)
+        self.unzip_and_add(bytes_io)
+
+    def unzip_and_add(self, bytes_io: BytesIO) -> None:
+        """Unzips the data and passes it to `add_to_exchange_rates`."""
         try:
             with ZipFile(bytes_io) as rates_zip:
                 for filename in rates_zip.namelist():
@@ -102,7 +102,6 @@ class ExchangeRates:
         except BadZipFile:
             bytes_io.seek(0)
             self.add_to_exchange_rates(bytes_io)
-
         log.debug("Parsed exchange rates from the retrieved data.")
 
     def get_rate(self, currency_from: str, currency_to: str, date_str: str) -> Decimal:
@@ -122,3 +121,12 @@ class ExchangeRates:
             f"Currencies {currency_from} and {currency_to} not found near "
             f"date {original_date} - search ended before {search_date}"
         )
+
+    @staticmethod
+    def get_date_rates(currencies: List[str], items: List[str]) -> Dict:
+        """Extract rates from items like '1.1579,137.37,...'"""
+        date_rates = {}
+        for cur, val in zip(currencies, items):
+            if is_number(val):
+                date_rates[cur] = val
+        return date_rates

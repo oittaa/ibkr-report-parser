@@ -54,11 +54,11 @@ class Storage(ABC):
 
     @abstractmethod
     def _save(self, content: CurrencyDict, filename: str) -> None:
-        raise NotImplementedError()
+        """Backend specific `save` implementation."""
 
     @abstractmethod
     def _load(self, filename: str) -> CurrencyDict:
-        raise NotImplementedError()
+        """Backend specific `load` implementation."""
 
     @property
     def name(self) -> str:
