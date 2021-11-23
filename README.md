@@ -1,5 +1,7 @@
 # ibkr-report-parser
 
+[![Python versions supported](https://img.shields.io/pypi/pyversions/ibkr-report-parser.svg?logo=python)](https://pypi.org/project/ibkr-report-parser/)
+[![PyPI status](https://badge.fury.io/py/ibkr-report-parser.svg)](https://pypi.org/project/ibkr-report-parser/)
 [![CI](https://github.com/oittaa/ibkr-report-parser/actions/workflows/main.yml/badge.svg)](https://github.com/oittaa/ibkr-report-parser/actions/workflows/main.yml)
 [![codecov](https://codecov.io/gh/oittaa/ibkr-report-parser/branch/main/graph/badge.svg?token=BV211C3GE5)](https://codecov.io/gh/oittaa/ibkr-report-parser)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
