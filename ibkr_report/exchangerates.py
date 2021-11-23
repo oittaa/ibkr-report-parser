@@ -7,7 +7,7 @@ from codecs import iterdecode
 from datetime import timedelta
 from decimal import Decimal
 from io import BytesIO
-from typing import Dict, Iterable, List
+from typing import Iterable
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
@@ -54,7 +54,7 @@ class ExchangeRates:
 
         {"2015-01-20": {"USD": "1.1579", ...}, ...}
         """
-        rates = {}
+        rates: CurrencyDict = {}
         currencies = []
         for items in csv.reader(iterdecode(rates_file, "utf-8")):
             if items[0] == "Date":
@@ -62,7 +62,11 @@ class ExchangeRates:
                 currencies = items[1:]
             if currencies and re.match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
                 # And the following rows like "2015-01-20,1.1579,137.37,..."
-                date_rates = self.get_date_rates(currencies, items[1:])
+                date_rates = {
+                    cur: val
+                    for cur, val in zip(currencies, items[1:])
+                    if is_number(val)
+                }
                 if date_rates:
                     rates[items[0]] = date_rates
         log.debug("Adding currency data from %d rows.", len(rates))
@@ -121,20 +125,3 @@ class ExchangeRates:
             f"Currencies {currency_from} and {currency_to} not found near "
             f"date {original_date} - search ended before {search_date}"
         )
-
-    @staticmethod
-    def get_date_rates(currencies: List[str], rates: List[str]) -> Dict:
-        """Maps exchange rates of a specific day.
-
-        Args:
-            currencies (List[str]): ['USD', 'JPY', ...]
-            rates (List[str]): ['1.1579', '137.37', '1.9558', 'N/A', ...]
-
-        Returns:
-            Dict[str, str]: {"USD": "1.1579", ...}
-        """
-        date_rates = {}
-        for cur, val in zip(currencies, rates):
-            if is_number(val):
-                date_rates[cur] = val
-        return date_rates
