@@ -123,10 +123,18 @@ class ExchangeRates:
         )
 
     @staticmethod
-    def get_date_rates(currencies: List[str], items: List[str]) -> Dict:
-        """Extract rates from items like '1.1579,137.37,...'"""
+    def get_date_rates(currencies: List[str], rates: List[str]) -> Dict:
+        """Maps exchange rates of a specific day.
+
+        Args:
+            currencies (List[str]): ['USD', 'JPY', ...]
+            rates (List[str]): ['1.1579', '137.37', '1.9558', 'N/A', ...]
+
+        Returns:
+            Dict[str, str]: {"USD": "1.1579", ...}
+        """
         date_rates = {}
-        for cur, val in zip(currencies, items):
+        for cur, val in zip(currencies, rates):
             if is_number(val):
                 date_rates[cur] = val
         return date_rates
