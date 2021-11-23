@@ -41,9 +41,10 @@ class Report:
         prices (Decimal): Total selling prices.
         gains (Decimal): Total capital gains.
         losses (Decimal): Total capital losses.
-        details(List): Details from trades such as dates and quantities.
+        details(List[TradeDetails]): Details from trades such as dates and quantities.
         options (ReportOptions): Report currency, whether to use the deemed
                                  acquisition cost.
+        rates (ExchangeRates): Euro foreign exchange rates.
     """
 
     prices: Decimal = Decimal(0)
