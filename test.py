@@ -251,6 +251,9 @@ class SmokeTests(unittest.TestCase):
 
 @patch("ibkr_report.exchangerates.EXCHANGE_RATES_URL", TEST_URL)
 class ReportTest(unittest.TestCase):
+    def setUp(self):
+        Cache.clear()
+
     def test_without_deemed_cost(self):
         report = Report(use_deemed_acquisition_cost=False)
         with open("test-data/data_deemed_acquisition_cost.csv", "rb") as file:
@@ -272,6 +275,9 @@ class ExchangeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.rates = ExchangeRates(TEST_URL)
+
+    def setUp(self):
+        Cache.clear()
 
     def test_self(self):
         same_same = self.rates.get_rate("USD", "USD", "2015-12-01")
@@ -335,6 +341,7 @@ class StorageTests(unittest.TestCase):
         cls._server.stop()
 
     def setUp(self):
+        Cache.clear()
         self.storage_dir = Path(mkdtemp())
 
     def tearDown(self):
@@ -348,12 +355,14 @@ class StorageTests(unittest.TestCase):
 
     def test_disabled_storage(self):
         storage = get_storage()()
+        storage.cache = False
         storage.save(self.test_data)
         self.assertEqual(storage.load(), {})
 
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_google_cloud_storage_save_and_load(self):
         storage = get_storage(StorageType.GCP)()
+        storage.cache = False
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
@@ -365,6 +374,7 @@ class StorageTests(unittest.TestCase):
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_aws_s3_save_and_load(self):
         storage = get_storage(StorageType.AWS)()
+        storage.cache = False
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
@@ -376,6 +386,7 @@ class StorageTests(unittest.TestCase):
 
     def test_local_save_and_load(self):
         storage = get_storage(StorageType.LOCAL)(storage_dir=self.storage_dir)
+        storage.cache = False
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
@@ -386,6 +397,7 @@ class StorageTests(unittest.TestCase):
     def test_local_custom_file_save_and_load(self):
         storage = get_storage(StorageType.LOCAL)(storage_dir=self.storage_dir)
         storage.save(self.test_data, "my-test-file")
+        Cache.clear()
         self.assertEqual(storage.load("my-test-file"), self.test_data)
         self.assertEqual(storage.load("not-existing"), {})
         full_path = self.storage_dir.joinpath("my-test-file")

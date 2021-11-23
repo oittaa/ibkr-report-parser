@@ -1,12 +1,10 @@
 """Extracts details about trades."""
 
 import logging
-from datetime import datetime
 from decimal import Decimal
 from typing import Tuple
 
 from ibkr_report.definitions import (
-    _DATE,
     AssetCategory,
     Field,
     ReportOptions,
@@ -15,7 +13,6 @@ from ibkr_report.definitions import (
 )
 from ibkr_report.exchangerates import ExchangeRates
 from ibkr_report.tools import (
-    Cache,
     add_years,
     date_without_time,
     decimal_cleanup,
@@ -34,10 +31,12 @@ class Trade:
     total_selling_price: Decimal = Decimal(0)
     data: RowData
     options: ReportOptions
+    rates: ExchangeRates
 
     def __init__(self, items: Tuple[str, ...], options: ReportOptions) -> None:
         """Initializes the Trade and calculates the total selling price from it."""
         self.options = options
+        self.rates = ExchangeRates()
         self.data = self._row_data(items)
 
         offset = self.options.offset
@@ -86,17 +85,14 @@ class Trade:
 
         # One option represents 100 shares of the underlying stock
         multiplier = 100 if items[Field.ASSET_CATEGORY] == AssetCategory.OPTIONS else 1
-
-        realized = (
-            abs(lot_data.quantity) * (sell_price - buy_price) * multiplier
-            - lot_data.quantity * self.fee / self.data.quantity
-        )
         total_sell_price = abs(lot_data.quantity) * sell_price * multiplier
+        total_buy_price = abs(lot_data.quantity) * buy_price * multiplier
+        lot_fee = lot_data.quantity * self.fee / self.data.quantity
+        realized = total_sell_price - total_buy_price - lot_fee
         if self.options.deemed_acquisition_cost:
-            realized = min(
-                realized,
-                self.deemed_profit(total_sell_price, buy_date, sell_date),
-            )
+            deemed_profit = self.deemed_profit(total_sell_price, buy_date, sell_date)
+            realized = min(realized, deemed_profit)
+
         log.info(
             "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, "
             "Selling price: %.2f, Gains/Losses: %.2f",
@@ -123,25 +119,16 @@ class Trade:
         offset = self.options.offset
         symbol = items[Field.SYMBOL + offset]
         date_str = items[Field.DATE_TIME + offset]
-        rate = self.currency_rate(
-            items[Field.CURRENCY], items[Field.DATE_TIME + offset]
+        rate = self.rates.get_rate(
+            self.options.report_currency,
+            items[Field.CURRENCY],
+            items[Field.DATE_TIME + offset],
         )
         price_per_share = (
             decimal_cleanup(items[Field.TRANSACTION_PRICE + offset]) / rate
         )
         quantity = decimal_cleanup(items[Field.QUANTITY + offset])
         return RowData(symbol, date_str, rate, price_per_share, quantity)
-
-    def currency_rate(self, currency: str, date_str: str) -> Decimal:
-        """Currency's exchange rate on a given day. Caches results."""
-        cache_key = datetime.now().strftime(_DATE)
-        rates = Cache.get(cache_key)
-        if not rates:
-            log.debug("Cache miss: %s", cache_key)
-            rates = ExchangeRates()
-            Cache.set(key=cache_key, value=rates)
-
-        return rates.get_rate(self.options.report_currency, currency, date_str)
 
     @staticmethod
     def deemed_profit(sell_price: Decimal, buy_date: str, sell_date: str) -> Decimal:

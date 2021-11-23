@@ -19,6 +19,7 @@ from ibkr_report.definitions import (
     CurrencyDict,
     StorageType,
 )
+from ibkr_report.tools import Cache
 
 log = logging.getLogger(__name__)
 
@@ -26,17 +27,29 @@ log = logging.getLogger(__name__)
 class Storage(ABC):
     """Storage class to save exchange rates."""
 
+    cache: bool = True
+
     def save(self, content: CurrencyDict, filename: str = None) -> None:
         """Save CurrencyDict to storage."""
         filename = filename or self.get_filename()
         log.debug("Save to '%s' using %s backend.", filename, self.name)
+        if self.cache:
+            Cache.set(filename, content)
         self._save(content, filename)
 
     def load(self, filename: str = None) -> CurrencyDict:
         """Load CurrencyDict from storage."""
         filename = filename or self.get_filename()
         log.debug("Load '%s' using %s backend.", filename, self.name)
-        return self._load(filename)
+        if self.cache:
+            content = Cache.get(filename)
+            if content:
+                return content
+            log.debug("Cache miss: %s", filename)
+        content = self._load(filename)
+        if content and self.cache:
+            Cache.set(filename, content)
+        return content
 
     @abstractmethod
     def _save(self, content: CurrencyDict, filename: str) -> None:
