@@ -111,7 +111,7 @@ class ExchangeRates:
             return Decimal(1)
 
         original_date = search_date = get_date(date_str)
-        while original_date - search_date < timedelta(MAX_BACKTRACK_DAYS):
+        while original_date - search_date <= timedelta(MAX_BACKTRACK_DAYS):
             date_rates = self.rates.get(search_date.strftime(_DATE), {})
             from_rate = "1" if currency_from == "EUR" else date_rates.get(currency_from)
             to_rate = "1" if currency_to == "EUR" else date_rates.get(currency_to)
@@ -120,5 +120,5 @@ class ExchangeRates:
             search_date -= timedelta(1)
         raise ValueError(
             f"Currencies {currency_from} and {currency_to} not found near "
-            f"date {original_date} - ended search at {search_date}"
+            f"date {original_date} - search ended before {search_date}"
         )

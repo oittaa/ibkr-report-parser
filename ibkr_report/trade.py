@@ -41,15 +41,13 @@ class Trade:
         self.rates = rates
         self.data = self._row_data(items)
 
-        offset = self.options.offset
-        self.fee = (
-            decimal_cleanup(items[Field.COMMISSION_AND_FEES + offset]) / self.data.rate
-        )
+        fee = decimal_cleanup(items[Field.COMMISSION_AND_FEES + self.options.offset])
+        self.fee = fee / self.data.rate
+
         # Sold stocks have a negative value in the "Quantity" column
         if self.data.quantity < Decimal(0):
-            self.total_selling_price = (
-                decimal_cleanup(items[Field.PROCEEDS + offset]) / self.data.rate
-            )
+            proceeds = decimal_cleanup(items[Field.PROCEEDS + self.options.offset])
+            self.total_selling_price = proceeds / self.data.rate
         log.debug(
             'Trade: "%s" "%s" %.2f',
             self.data.date_str,
@@ -76,23 +74,23 @@ class Trade:
             raise ValueError(error_msg)
 
         sell_date = date_without_time(self.data.date_str)
-        sell_price = self.data.price_per_share
+        unit_sell_price = self.data.price_per_share
         buy_date = date_without_time(lot_data.date_str)
-        buy_price = lot_data.price_per_share
+        unit_buy_price = lot_data.price_per_share
 
         # Swap if closing a short position
         if lot_data.quantity < Decimal(0):
             sell_date, buy_date = buy_date, sell_date
-            sell_price, buy_price = buy_price, sell_price
+            unit_sell_price, unit_buy_price = unit_buy_price, unit_sell_price
 
         # One option represents 100 shares of the underlying stock
         multiplier = 100 if items[Field.ASSET_CATEGORY] == AssetCategory.OPTIONS else 1
-        total_sell_price = abs(lot_data.quantity) * sell_price * multiplier
-        total_buy_price = abs(lot_data.quantity) * buy_price * multiplier
+        lot_sell_price = abs(lot_data.quantity) * unit_sell_price * multiplier
+        lot_buy_price = abs(lot_data.quantity) * unit_buy_price * multiplier
         lot_fee = lot_data.quantity * self.fee / self.data.quantity
-        realized = total_sell_price - total_buy_price - lot_fee
+        realized = lot_sell_price - lot_buy_price - lot_fee
         if self.options.deemed_acquisition_cost:
-            deemed_profit = self.deemed_profit(total_sell_price, buy_date, sell_date)
+            deemed_profit = self.deemed_profit(lot_sell_price, buy_date, sell_date)
             realized = min(realized, deemed_profit)
 
         log.info(
@@ -102,7 +100,7 @@ class Trade:
             abs(lot_data.quantity),
             buy_date,
             sell_date,
-            total_sell_price,
+            lot_sell_price,
             realized,
         )
         self.closed_quantity += lot_data.quantity
@@ -113,23 +111,21 @@ class Trade:
             quantity=abs(lot_data.quantity),
             buy_date=buy_date,
             sell_date=sell_date,
-            price=total_sell_price,
+            price=lot_sell_price,
             realized=realized,
         )
 
     def _row_data(self, items: Tuple[str, ...]) -> RowData:
-        offset = self.options.offset
-        symbol = items[Field.SYMBOL + offset]
-        date_str = items[Field.DATE_TIME + offset]
+        symbol = items[Field.SYMBOL + self.options.offset]
+        date_str = items[Field.DATE_TIME + self.options.offset]
         rate = self.rates.get_rate(
-            self.options.report_currency,
-            items[Field.CURRENCY],
-            items[Field.DATE_TIME + offset],
+            currency_from=self.options.report_currency,
+            currency_to=items[Field.CURRENCY],
+            date_str=date_str,
         )
-        price_per_share = (
-            decimal_cleanup(items[Field.TRANSACTION_PRICE + offset]) / rate
-        )
-        quantity = decimal_cleanup(items[Field.QUANTITY + offset])
+        original_price_per_share = items[Field.TRANSACTION_PRICE + self.options.offset]
+        price_per_share = decimal_cleanup(original_price_per_share) / rate
+        quantity = decimal_cleanup(items[Field.QUANTITY + self.options.offset])
         return RowData(symbol, date_str, rate, price_per_share, quantity)
 
     @staticmethod

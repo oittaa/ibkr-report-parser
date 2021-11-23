@@ -302,6 +302,11 @@ class ExchangeTests(unittest.TestCase):
         nok_eur = self.rates.get_rate("NOK", "EUR", "2010-01-01")
         self.assertLess(nok_eur, Decimal("0.2"))
 
+    @patch("ibkr_report.exchangerates.MAX_BACKTRACK_DAYS", 0)
+    def test_no_backtrack(self):
+        with self.assertRaises(ValueError):
+            self.rates.get_rate("NOK", "EUR", "2010-01-01")
+
     def test_currency_does_not_exist(self):
         with self.assertRaises(ValueError):
             self.rates.get_rate("KEKW", "USD", "2015-12-01")
