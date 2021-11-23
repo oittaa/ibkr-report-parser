@@ -33,10 +33,12 @@ class Trade:
     options: ReportOptions
     rates: ExchangeRates
 
-    def __init__(self, items: Tuple[str, ...], options: ReportOptions) -> None:
+    def __init__(
+        self, items: Tuple[str, ...], options: ReportOptions, rates: ExchangeRates
+    ) -> None:
         """Initializes the Trade and calculates the total selling price from it."""
         self.options = options
-        self.rates = ExchangeRates()
+        self.rates = rates
         self.data = self._row_data(items)
 
         offset = self.options.offset

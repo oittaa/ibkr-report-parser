@@ -18,6 +18,7 @@ from ibkr_report.definitions import (
     ReportOptions,
     TradeDetails,
 )
+from ibkr_report.exchangerates import ExchangeRates
 from ibkr_report.trade import Trade
 
 
@@ -50,6 +51,7 @@ class Report:
     losses: Decimal = Decimal(0)
     details: List[TradeDetails]
     options: ReportOptions
+    rates: ExchangeRates
     _trade: Optional[Trade] = None
 
     def __init__(
@@ -64,6 +66,7 @@ class Report:
             deemed_acquisition_cost=use_deemed_acquisition_cost,
             offset=0,
         )
+        self.rates = ExchangeRates()
         if file:
             self.add_trades(file)
 
@@ -99,7 +102,7 @@ class Report:
     def _handle_trade(self, items: Tuple[str, ...]) -> None:
         """Parses prices, gains, and losses from trades."""
         if items[Field.DATA_DISCRIMINATOR] == DataDiscriminator.TRADE:
-            self._trade = Trade(items, self.options)
+            self._trade = Trade(items, self.options, self.rates)
             self.prices += self._trade.total_selling_price
         if items[Field.DATA_DISCRIMINATOR] == DataDiscriminator.CLOSED_LOT:
             if not self._trade:

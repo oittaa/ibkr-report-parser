@@ -44,6 +44,7 @@ class Storage(ABC):
         if self.cache:
             content = Cache.get(filename)
             if content:
+                log.debug("Cache hit: %s", filename)
                 return content
             log.debug("Cache miss: %s", filename)
         content = self._load(filename)
