@@ -5,8 +5,5 @@ requires = ["setuptools", "wheel"]
 branch = true
 source = ["ibkr_report"]
 
-[tool.coverage.report]
-exclude_lines = ["@(abc\\.)?abstractmethod"]
-
 [tool.mypy]
 files = ["*.py", "ibkr_report/*.py"]

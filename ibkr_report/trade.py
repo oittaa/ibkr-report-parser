@@ -19,7 +19,6 @@ from ibkr_report.tools import (
     get_date,
 )
 
-
 log = logging.getLogger(__name__)
 
 
@@ -57,21 +56,8 @@ class Trade:
 
     def details_from_closed_lot(self, items: Tuple[str, ...]) -> TradeDetails:
         """Calculates the realized gains or losses from the ClosedLot related to the Trade."""
-        error_msg = ""
         lot_data = self._row_data(items)
-        if self.data.symbol != lot_data.symbol:
-            error_msg = (
-                f"Symbol mismatch! Date: {lot_data.date_str}, "
-                f"Trade: {self.data.symbol}, ClosedLot: {lot_data.symbol}"
-            )
-        elif abs(self.data.quantity + lot_data.quantity) > abs(self.data.quantity):
-            error_msg = (
-                'Invalid data. "Trade" and "ClosedLot" quantities do not match. '
-                f"Date: {lot_data.date_str}, Symbol: {lot_data.symbol}"
-            )
-        if error_msg:
-            log.debug(items)
-            raise ValueError(error_msg)
+        self._validate_lot(lot_data)
 
         sell_date = date_without_time(self.data.date_str)
         unit_sell_price = self.data.price_per_share
@@ -127,6 +113,23 @@ class Trade:
         price_per_share = decimal_cleanup(original_price_per_share) / rate
         quantity = decimal_cleanup(items[Field.QUANTITY + self.options.offset])
         return RowData(symbol, date_str, rate, price_per_share, quantity)
+
+    def _validate_lot(self, lot_data: RowData) -> None:
+        error_msg = ""
+
+        if self.data.symbol != lot_data.symbol:
+            error_msg = (
+                f"Symbol mismatch! Date: {lot_data.date_str}, "
+                f"Trade: {self.data.symbol}, ClosedLot: {lot_data.symbol}"
+            )
+        elif abs(self.data.quantity + lot_data.quantity) > abs(self.data.quantity):
+            error_msg = (
+                'Invalid data. "Trade" and "ClosedLot" quantities do not match. '
+                f"Date: {lot_data.date_str}, Symbol: {lot_data.symbol}"
+            )
+        if error_msg:
+            log.debug(lot_data)
+            raise ValueError(error_msg)
 
     @staticmethod
     def deemed_profit(sell_price: Decimal, buy_date: str, sell_date: str) -> Decimal:
