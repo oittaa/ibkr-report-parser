@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 from gcp_storage_emulator.server import create_server  # type: ignore
 from moto import mock_s3  # type: ignore
 
-from ibkr_report.definitions import FieldValue, StorageType
+from ibkr_report.definitions import FieldValue, StorageType, _strtobool
 from ibkr_report.exchangerates import ExchangeRates
 from ibkr_report.report import Report
 from ibkr_report.storage import get_storage
@@ -247,6 +247,12 @@ class SmokeTests(unittest.TestCase):
 
     def test_str_enum(self):
         self.assertEqual(FieldValue.TRADES, "Trades")
+
+    def test_strtobool(self):
+        self.assertTrue(_strtobool("TRUE"))
+        self.assertFalse(_strtobool("FALSE"))
+        with self.assertRaises(ValueError):
+            _strtobool("not_a_bool")
 
 
 @patch("ibkr_report.exchangerates.EXCHANGE_RATES_URL", TEST_URL)

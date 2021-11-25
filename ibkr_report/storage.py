@@ -3,16 +3,15 @@
 import importlib
 import json
 import logging
-import os
 from abc import ABC, abstractmethod
 from datetime import datetime
 from lzma import compress, decompress
 from pathlib import Path
-from typing import Type
+from typing import Optional, Type
 
 from ibkr_report.definitions import (
-    _DATE,
     BUCKET_ID,
+    DATE_FORMAT,
     SAVED_RATES_FILE,
     STORAGE_DIR,
     STORAGE_TYPE,
@@ -72,7 +71,7 @@ class Storage(ABC):
         Optionally you can give your own identifier that distinguishes files.
         """
         if identifier is None:
-            identifier = datetime.now().strftime(_DATE)
+            identifier = datetime.now().strftime(DATE_FORMAT)
         return SAVED_RATES_FILE.format(identifier)
 
     @staticmethod
@@ -126,15 +125,16 @@ class GoogleCloudStorage(Storage):
     def __init__(self, bucket_id: str = None) -> None:
         storage = importlib.import_module("google.cloud.storage")
         exceptions = importlib.import_module("google.cloud.exceptions")
+        auth_exceptions = importlib.import_module("google.auth.exceptions")
 
         log.debug("Using %s backend.", self.name)
         self.bucket_id = bucket_id or BUCKET_ID
-        if os.getenv("STORAGE_EMULATOR_HOST"):
+        try:
+            client = storage.Client()  # type: ignore
+        except (auth_exceptions.DefaultCredentialsError, OSError):  # type: ignore
             # Local testing etc.
             client = storage.Client.create_anonymous_client()  # type: ignore
             client.project = "<none>"
-        else:
-            client = storage.Client()  # type: ignore
         try:
             self.bucket = client.get_bucket(self.bucket_id)
         except exceptions.NotFound:  # type: ignore
@@ -176,20 +176,28 @@ def get_storage(storage_type: StorageType = None) -> Type[Storage]:
     if storage_type is None:
         storage_type = StorageType(STORAGE_TYPE)
 
-    if storage_type is StorageType.AWS:
-        return AmazonS3
-    if storage_type is StorageType.GCP:
-        return GoogleCloudStorage
+    cloud_storage = get_cloud_storage(storage_type)
+    if cloud_storage:
+        return cloud_storage
 
-    # Past the cloud storage options, fail if BUCKET_ID is set
-    if BUCKET_ID:
-        raise ValueError(
-            f"[BUCKET_ID] set as {BUCKET_ID!r}, but [STORAGE_TYPE] is set as {STORAGE_TYPE!r}."
-            " With a bucket [STORAGE_TYPE] needs to be set as [AWS|GCP]."
-        )
     if storage_type is StorageType.LOCAL:
         return LocalStorage
     if storage_type is StorageType.DISABLED:
         return StorageDisabled
 
     raise NotImplementedError(f"Not implemented: {storage_type!r}")
+
+
+def get_cloud_storage(storage_type: StorageType = None) -> Optional[Type[Storage]]:
+    """Cloud storages with storage buckets."""
+    if storage_type is StorageType.AWS:
+        return AmazonS3
+    if storage_type is StorageType.GCP:
+        return GoogleCloudStorage
+    # Past the cloud storage options, fail if BUCKET_ID is set
+    if BUCKET_ID:
+        raise ValueError(
+            f"[BUCKET_ID] set as {BUCKET_ID!r}, but [STORAGE_TYPE] is set as {STORAGE_TYPE!r}."
+            " With a bucket [STORAGE_TYPE] needs to be set as [AWS|GCP]."
+        )
+    return None

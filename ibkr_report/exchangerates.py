@@ -13,7 +13,7 @@ from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
 
 from ibkr_report.definitions import (
-    _DATE,
+    DATE_FORMAT,
     EXCHANGE_RATES_URL,
     MAX_BACKTRACK_DAYS,
     MAX_HTTP_RETRIES,
@@ -115,7 +115,7 @@ class ExchangeRates:
 
         original_date = search_date = get_date(date_str)
         while original_date - search_date <= timedelta(MAX_BACKTRACK_DAYS):
-            date_rates = self.rates.get(search_date.strftime(_DATE), {})
+            date_rates = self.rates.get(search_date.strftime(DATE_FORMAT), {})
             from_rate = "1" if currency_from == "EUR" else date_rates.get(currency_from)
             to_rate = "1" if currency_to == "EUR" else date_rates.get(currency_to)
             if from_rate is not None and to_rate is not None:

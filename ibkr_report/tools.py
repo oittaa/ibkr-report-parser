@@ -11,7 +11,7 @@ from typing import Any, Dict
 
 from flask import current_app
 
-from ibkr_report.definitions import _DATE_STR_FORMATS, LOGGING_LEVEL
+from ibkr_report.definitions import _DEFAULT_LOGGING, DATE_STR_FORMATS, LOGGING_LEVEL
 
 _cache: Dict = {}
 _MAXCACHE = 10
@@ -45,7 +45,7 @@ class Cache:
 
 def get_date(date_str: str) -> date:
     """Converts a string formatted date to a date object."""
-    for date_format in _DATE_STR_FORMATS:
+    for date_format in DATE_STR_FORMATS:
         try:
             return datetime.strptime(date_str, date_format).date()
         except ValueError:
@@ -104,12 +104,11 @@ def hash_sum(filename, hash_func):
 
 def set_logging() -> None:
     """Set logging level according to the ENV variable LOGGING_LEVEL."""
-    if not current_app.debug:
-        level = logging.getLevelName(LOGGING_LEVEL.upper())
-        if isinstance(level, int):
-            current_app.logger.setLevel(level)
-        else:
-            current_app.logger.setLevel(logging.WARNING)
+    level = logging.getLevelName(LOGGING_LEVEL.upper())
+    if isinstance(level, int):
+        current_app.logger.setLevel(level)
+    else:
+        current_app.logger.setLevel(logging.getLevelName(_DEFAULT_LOGGING))
     log_level = logging.getLevelName(current_app.logger.level)
     current_app.logger.debug(f"Logging level: {log_level}")
 
