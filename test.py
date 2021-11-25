@@ -276,6 +276,14 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(round(report.gains, 2), Decimal("6826.73"))
         self.assertEqual(round(report.losses, 2), Decimal("0.00"))
 
+    def test_report_currency_eur_lowercase(self):
+        report = Report(report_currency="eur")
+        with open("test-data/data_single_account.csv", "rb") as file:
+            report.add_trades(file)
+        self.assertEqual(round(report.prices, 2), Decimal("8518.52"))
+        self.assertEqual(round(report.gains, 2), Decimal("5964.76"))
+        self.assertEqual(round(report.losses, 2), Decimal("0.00"))
+
 
 class ExchangeTests(unittest.TestCase):
     @classmethod
