@@ -65,7 +65,7 @@ class Report:
     ) -> None:
         self.details = []
         self.options = ReportOptions(
-            report_currency=report_currency,
+            report_currency=report_currency.upper(),
             deemed_acquisition_cost=use_deemed_acquisition_cost,
             offset=0,
         )
