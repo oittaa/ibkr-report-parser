@@ -97,7 +97,9 @@ def calculate_sri_on_file(filename: str) -> str:
 # TODO: mypy 0.910 "BinaryIO" has no attribute "readinto"
 # TODO: pylint "Module 'hashlib' has no '_Hash' member"
 #       https://github.com/PyCQA/pylint/issues/5395
-def update_hash(filename: str, hash_func: hashlib._Hash) -> None:
+def update_hash(
+    filename: str, hash_func: hashlib._Hash  # pylint: disable=no-member
+) -> None:
     """Compute message digest from a file."""
     byte_array = bytearray(128 * 1024)
     memory_view = memoryview(byte_array)
