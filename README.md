@@ -34,15 +34,15 @@ Browse to http://127.0.0.1:8080/
 
 * `TITLE` The title of the website. Default `IBKR Report Parser`
 * `CURRENCY` The currency used in the report output. Default `EUR`
-* `USE_DEEMED_ACQUISITION_COST` Whether to use the [deemed acquisition cost][selling shares] if it benefits you. Default `TRUE`
-* `STORAGE_TYPE` The storage to save the fetched daily Euro exchange rates, if set to anything other than `DISABLED`. Default `DISABLED`
+* `USE_DEEMED_ACQUISITION_COST` Whether to use the [deemed acquisition cost][selling shares], if it benefits you. Default `TRUE`
+* `STORAGE_TYPE` The storage to save the fetched daily Euro exchange rates, if set to anything other than `DISABLED`. Currently supported types are `LOCAL`, `AWS`, and `GCP`. Default `DISABLED`
 * `STORAGE_DIR` The directory used when `STORAGE_TYPE` is set to `LOCAL`. Default `.ibkr_storage`
 * `BUCKET_ID` The storage bucket used when `STORAGE_TYPE` is set to `AWS` or `GCP`. Default `""`
 
 ### Testing and debugging
 * `DEBUG` Flask debug. Default `FALSE`
 * `LOGGING_LEVEL` Python logging level. Default `INFO`
-* `EXCHANGE_RATES_URL` URL for official Euro exchange rates from European Central Bank. Default `https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip`
+* `EXCHANGE_RATES_URL` URL for the Euro exchange rates from European Central Bank. Default `https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip`
 
 ## How to build yourself
 
