@@ -3,7 +3,7 @@ import os
 import unittest
 from decimal import Decimal
 from pathlib import Path
-from tempfile import mkdtemp
+from tempfile import NamedTemporaryFile, mkdtemp
 from unittest.mock import patch
 from urllib.error import HTTPError
 
@@ -14,13 +14,23 @@ from ibkr_report.definitions import FieldValue, StorageType, _strtobool
 from ibkr_report.exchangerates import ExchangeRates
 from ibkr_report.report import Report
 from ibkr_report.storage import get_storage
-from ibkr_report.tools import Cache
+from ibkr_report.tools import Cache, calculate_sri_on_file
 from main import app
 
 TEST_BUCKET = "test"
 THIS_PATH = os.path.abspath(os.getcwd())
 TEST_URL = f"file://{THIS_PATH}/test-data/eurofxref-hist.zip"
 TEST_BROKEN_URL = f"file://{THIS_PATH}/test-data/eurofxref-broken.csv"
+
+# echo -n "" | openssl dgst -sha384 -binary | openssl base64 -A
+EMPTY_FILE_SRI = (
+    "sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb"
+)
+TEST_STRING = "alert('Hello, world.');"
+# echo -n "alert('Hello, world.');" | openssl dgst -sha384 -binary | openssl base64 -A
+TEST_STRING_SRI = (
+    "sha384-H8BRh8j48O9oYatfu5AZzq6A9RINhZO5H16dQZngK7T62em8MUt1FLm52t+eX6xO"
+)
 
 
 @patch("ibkr_report.exchangerates.EXCHANGE_RATES_URL", TEST_URL)
@@ -253,6 +263,15 @@ class SmokeTests(unittest.TestCase):
         self.assertFalse(_strtobool("FALSE"))
         with self.assertRaises(ValueError):
             _strtobool("not_a_bool")
+
+    def test_sri(self):
+        with NamedTemporaryFile() as tempf:
+            val1 = calculate_sri_on_file(tempf.name)
+            tempf.write(TEST_STRING.encode("utf-8"))
+            tempf.flush()
+            val2 = calculate_sri_on_file(tempf.name)
+        self.assertEqual(val1, EMPTY_FILE_SRI)
+        self.assertEqual(val2, TEST_STRING_SRI)
 
 
 @patch("ibkr_report.exchangerates.EXCHANGE_RATES_URL", TEST_URL)

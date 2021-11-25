@@ -1,12 +1,14 @@
 """Tools and utility functions."""
 
+from __future__ import annotations
+
+import hashlib
 import logging
 import os
 import re
 from base64 import b64encode
 from datetime import date, datetime
 from decimal import Decimal
-from hashlib import sha384
 from typing import Any, Dict
 
 from flask import current_app
@@ -86,20 +88,22 @@ def is_number(number_str: str) -> bool:
 
 def calculate_sri_on_file(filename: str) -> str:
     """Calculate Subresource Integrity string."""
-    hash_digest = hash_sum(filename, sha384()).digest()
-    hash_base64 = b64encode(hash_digest).decode()
+    hash_func = hashlib.sha384()
+    update_hash(filename, hash_func)
+    hash_base64 = b64encode(hash_func.digest()).decode()
     return f"sha384-{hash_base64}"
 
 
 # TODO: mypy 0.910 "BinaryIO" has no attribute "readinto"
-def hash_sum(filename, hash_func):
+# TODO: pylint "Module 'hashlib' has no '_Hash' member"
+#       https://github.com/PyCQA/pylint/issues/5395
+def update_hash(filename: str, hash_func: hashlib._Hash) -> None:
     """Compute message digest from a file."""
     byte_array = bytearray(128 * 1024)
     memory_view = memoryview(byte_array)
     with open(filename, "rb", buffering=0) as file:
-        for block in iter(lambda: file.readinto(memory_view), 0):
+        for block in iter(lambda: file.readinto(memory_view), 0):  # type: ignore
             hash_func.update(memory_view[:block])
-    return hash_func
 
 
 def set_logging() -> None:
