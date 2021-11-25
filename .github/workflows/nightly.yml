@@ -46,7 +46,7 @@ jobs:
         run: mypy
       - name: Pylint
         if: matrix.python-version != '3.11-dev'
-        run: pylint --exit-zero main.py ibkr_report
+        run: pylint main.py ibkr_report
       - name: Run tests with Coverage
         run: |
           coverage run -m unittest discover

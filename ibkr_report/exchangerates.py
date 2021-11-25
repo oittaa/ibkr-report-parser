@@ -41,7 +41,7 @@ class ExchangeRates:
         """
         url = url or EXCHANGE_RATES_URL
         storage = get_storage(storage_type=storage_type)
-        # TODO: mypy 0.910 https://github.com/python/mypy/pull/9629
+        # TODO: mypy 0.910 https://github.com/python/mypy/pull/9629  # pylint: disable=fixme
         self.storage = storage(**kwargs)  # type: ignore
         self.rates = self.storage.load()
         if not self.rates:
@@ -71,7 +71,7 @@ class ExchangeRates:
                     rates[items[0]] = date_rates
         log.debug("Adding currency data from %d rows.", len(rates))
         self.rates = {**self.rates, **rates}
-        # TODO: Python3.9+ "self.rates |= rates"
+        # TODO: Python3.9+ "self.rates |= rates"  # pylint: disable=fixme
 
     def download_official_rates(self, url: str) -> None:
         """Downloads the official currency exchange rates from European Central Bank
