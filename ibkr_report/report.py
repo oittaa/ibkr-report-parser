@@ -9,8 +9,10 @@ from decimal import Decimal
 from typing import Iterable, List, Optional, Tuple
 
 from ibkr_report.definitions import (
-    _FIELD_COUNT,
-    _OFFSET_DICT,
+    CURRENCY,
+    FIELD_COUNT,
+    OFFSET_DICT,
+    USE_DEEMED_ACQUISITION_COST,
     AssetCategory,
     DataDiscriminator,
     Field,
@@ -58,8 +60,8 @@ class Report:
     def __init__(
         self,
         file: Iterable[bytes] = None,
-        report_currency: str = "EUR",
-        use_deemed_acquisition_cost: bool = True,
+        report_currency: str = CURRENCY,
+        use_deemed_acquisition_cost: bool = USE_DEEMED_ACQUISITION_COST,
     ) -> None:
         self.details = []
         self.options = ReportOptions(
@@ -76,20 +78,14 @@ class Report:
         try:
             for items_list in csv.reader(iterdecode(file, "utf-8")):
                 items = tuple(items_list)
-                offset = _OFFSET_DICT.get(items)
-                if offset is not None:
-                    self.options.offset = offset
-                    self._trade = None
-                    continue
-                if self.is_stock_or_options_trade(items):
-                    self._handle_trade(items)
+                self._handle_one_line(items)
         except UnicodeDecodeError as err:
             raise ValueError("Input data not in UTF-8 text format.") from err
 
     def is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
         """Checks whether the current row is part of a trade or not."""
         if (
-            len(items) == _FIELD_COUNT + self.options.offset
+            len(items) == FIELD_COUNT + self.options.offset
             and items[Field.TRADES] == FieldValue.TRADES
             and items[Field.HEADER] == FieldValue.HEADER
             and items[Field.DATA_DISCRIMINATOR]
@@ -99,6 +95,15 @@ class Report:
         ):
             return True
         return False
+
+    def _handle_one_line(self, items: Tuple[str, ...]) -> None:
+        offset = OFFSET_DICT.get(items)
+        if offset is not None:
+            self.options.offset = offset
+            self._trade = None
+            return
+        if self.is_stock_or_options_trade(items):
+            self._handle_trade(items)
 
     def _handle_trade(self, items: Tuple[str, ...]) -> None:
         """Parses prices, gains, and losses from trades."""
