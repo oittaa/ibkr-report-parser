@@ -1,6 +1,6 @@
 coverage[toml]==6.2
 flake8==4.0.1
 gcp-storage-emulator==2021.12.2
-moto[s3]==2.2.18
+moto[s3]==2.2.19
 mypy==0.910
 pylint==2.12.2
