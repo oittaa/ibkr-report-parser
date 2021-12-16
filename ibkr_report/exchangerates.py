@@ -41,8 +41,7 @@ class ExchangeRates:
         """
         url = url or EXCHANGE_RATES_URL
         storage = get_storage(storage_type=storage_type)
-        # TODO: mypy 0.910 https://github.com/python/mypy/pull/9629  # pylint: disable=fixme
-        self.storage = storage(**kwargs)  # type: ignore
+        self.storage = storage(**kwargs)
         self.rates = self.storage.load()
         if not self.rates:
             self.download_official_rates(url)
