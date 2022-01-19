@@ -1,26 +1,20 @@
 import json
 import os
 import unittest
-from decimal import Decimal
-from pathlib import Path
-from tempfile import NamedTemporaryFile, mkdtemp
+from tempfile import NamedTemporaryFile
 from unittest.mock import patch
 from urllib.error import HTTPError
 
 from gcp_storage_emulator.server import create_server  # type: ignore
-from moto import mock_s3  # type: ignore
 
-from ibkr_report.definitions import FieldValue, StorageType, _strtobool
-from ibkr_report.exchangerates import ExchangeRates
-from ibkr_report.report import Report
-from ibkr_report.storage import get_storage
+from ibkr_report import create_app
+from ibkr_report.definitions import FieldValue, _strtobool
 from ibkr_report.tools import Cache, calculate_sri_on_file
-from main import app
 
 TEST_BUCKET = "test"
 THIS_PATH = os.path.abspath(os.getcwd())
-TEST_URL = f"file://{THIS_PATH}/test-data/eurofxref-hist.zip"
-TEST_BROKEN_URL = f"file://{THIS_PATH}/test-data/eurofxref-broken.csv"
+TEST_URL = f"file://{THIS_PATH}/tests/test-data/eurofxref-hist.zip"
+TEST_BROKEN_URL = f"file://{THIS_PATH}/tests/test-data/eurofxref-broken.csv"
 
 # echo -n "" | openssl dgst -sha384 -binary | openssl base64 -A
 EMPTY_FILE_SRI = (
@@ -38,6 +32,7 @@ class SmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         os.environ["STORAGE_EMULATOR_HOST"] = "http://localhost:9023"
+        os.environ["GOOGLE_CLOUD_PROJECT"] = "<test>"
         cls._server = create_server(
             "localhost", 9023, in_memory=True, default_bucket=TEST_BUCKET
         )
@@ -48,6 +43,7 @@ class SmokeTests(unittest.TestCase):
         cls._server.stop()
 
     def setUp(self):
+        app = create_app()
         self.app = app.test_client()
         self.assertEqual(app.debug, False)
 
@@ -62,8 +58,8 @@ class SmokeTests(unittest.TestCase):
         response = self.app.get("/cron")
         self.assertEqual(response.status_code, 403)
         response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
-        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, b"Done!")
+        self.assertEqual(response.status_code, 200)
 
     def test_get_cron_without_bucket(self):
         response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
@@ -82,7 +78,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(response.data, msg)
 
     def test_post_single_account(self):
-        data = {"file": open("test-data/data_single_account.csv", "rb")}
+        data = {"file": open("tests/test-data/data_single_account.csv", "rb")}
         response = self.app.post("/result", data=data)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -90,7 +86,7 @@ class SmokeTests(unittest.TestCase):
         )
 
     def test_post_single_account_json(self):
-        data = {"file": open("test-data/data_single_account.csv", "rb")}
+        data = {"file": open("tests/test-data/data_single_account.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers.get("Content-Type"), "application/json")
@@ -101,7 +97,7 @@ class SmokeTests(unittest.TestCase):
         self.assertIsInstance(data_json["details"], list)
 
     def test_post_multi_account_json(self):
-        data = {"file": open("test-data/data_multi_account.csv", "rb")}
+        data = {"file": open("tests/test-data/data_multi_account.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
@@ -110,12 +106,12 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["losses"], 445.98)
 
     def test_post_data_in_future(self):
-        data = {"file": open("test-data/data_dates_in_future.csv", "rb")}
+        data = {"file": open("tests/test-data/data_dates_in_future.csv", "rb")}
         response = self.app.post("/result", data=data)
         self.assertEqual(response.status_code, 400)
 
     def test_post_shorting_stocks(self):
-        data = {"file": open("test-data/data_shorting_stocks.csv", "rb")}
+        data = {"file": open("tests/test-data/data_shorting_stocks.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
@@ -124,7 +120,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["losses"], 0.00)
 
     def test_post_shorting_not_closed(self):
-        data = {"file": open("test-data/data_shorting_not_closed.csv", "rb")}
+        data = {"file": open("tests/test-data/data_shorting_not_closed.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
@@ -133,7 +129,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["losses"], 0.00)
 
     def test_post_deemed_acquisition_cost(self):
-        data = {"file": open("test-data/data_deemed_acquisition_cost.csv", "rb")}
+        data = {"file": open("tests/test-data/data_deemed_acquisition_cost.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
@@ -142,12 +138,12 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["losses"], 0.00)
 
     def test_post_closedlot_without_trade(self):
-        data = {"file": open("test-data/data_closedlot_without_trade.csv", "rb")}
+        data = {"file": open("tests/test-data/data_closedlot_without_trade.csv", "rb")}
         response = self.app.post("/result", data=data)
         self.assertEqual(response.status_code, 400)
 
     def test_post_numbers_within_quotes(self):
-        data = {"file": open("test-data/data_numbers_within_quotes.csv", "rb")}
+        data = {"file": open("tests/test-data/data_numbers_within_quotes.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
@@ -156,7 +152,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["losses"], 0.00)
 
     def test_post_currency_rate_over_1000(self):
-        data = {"file": open("test-data/data_currency_rate_over_1000.csv", "rb")}
+        data = {"file": open("tests/test-data/data_currency_rate_over_1000.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
@@ -166,7 +162,7 @@ class SmokeTests(unittest.TestCase):
 
     @patch("ibkr_report.tools.LOGGING_LEVEL", "INVALID_LOGGING_LEVEL")
     def test_post_invalid_date_html(self):
-        data = {"file": open("test-data/data_invalid_date.csv", "rb")}
+        data = {"file": open("tests/test-data/data_invalid_date.csv", "rb")}
         response = self.app.post("/result", data=data)
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
@@ -174,7 +170,7 @@ class SmokeTests(unittest.TestCase):
         )
 
     def test_post_invalid_data(self):
-        data = {"file": open("test-data/eurofxref-hist.zip", "rb")}
+        data = {"file": open("tests/test-data/eurofxref-hist.zip", "rb")}
         response = self.app.post("/result", data=data)
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
@@ -182,7 +178,7 @@ class SmokeTests(unittest.TestCase):
         )
 
     def test_post_invalid_date_json(self):
-        data = {"file": open("test-data/data_invalid_date.csv", "rb")}
+        data = {"file": open("tests/test-data/data_invalid_date.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.headers.get("Content-Type"), "application/json")
@@ -192,7 +188,7 @@ class SmokeTests(unittest.TestCase):
         )
 
     def test_post_symbol_mismatch(self):
-        data = {"file": open("test-data/data_symbol_mismatch.csv", "rb")}
+        data = {"file": open("tests/test-data/data_symbol_mismatch.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.headers.get("Content-Type"), "application/json")
@@ -203,7 +199,7 @@ class SmokeTests(unittest.TestCase):
         )
 
     def test_post_wrong_quantities(self):
-        data = {"file": open("test-data/data_wrong_quantities.csv", "rb")}
+        data = {"file": open("tests/test-data/data_wrong_quantities.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.headers.get("Content-Type"), "application/json")
@@ -220,7 +216,7 @@ class SmokeTests(unittest.TestCase):
             "ibkr_report.exchangerates.urlopen",
             side_effect=HTTPError("", 404, "Test", {}, None),
         ):
-            data = {"file": open("test-data/data_single_account.csv", "rb")}
+            data = {"file": open("tests/test-data/data_single_account.csv", "rb")}
             response = self.app.post("/result?json", data=data)
             self.assertEqual(response.status_code, 400)
             data_json = json.loads(response.data)
@@ -238,7 +234,7 @@ class SmokeTests(unittest.TestCase):
         Cache.clear()
         response = self.app.get("/cron", headers={"X-Appengine-Cron": "true"})
         self.assertEqual(response.status_code, 200)
-        data = {"file": open("test-data/data_single_account.csv", "rb")}
+        data = {"file": open("tests/test-data/data_single_account.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
 
@@ -272,188 +268,6 @@ class SmokeTests(unittest.TestCase):
             val2 = calculate_sri_on_file(tempf.name)
         self.assertEqual(val1, EMPTY_FILE_SRI)
         self.assertEqual(val2, TEST_STRING_SRI)
-
-
-@patch("ibkr_report.exchangerates.EXCHANGE_RATES_URL", TEST_URL)
-class ReportTest(unittest.TestCase):
-    def setUp(self):
-        Cache.clear()
-
-    def test_without_deemed_cost(self):
-        report = Report(use_deemed_acquisition_cost=False)
-        with open("test-data/data_deemed_acquisition_cost.csv", "rb") as file:
-            report.add_trades(file)
-        self.assertEqual(report.prices, Decimal("9982.0"))
-        self.assertEqual(round(report.gains, 2), Decimal("6937.94"))
-        self.assertEqual(report.losses, Decimal("0.00"))
-
-    def test_report_currency_usd(self):
-        report = Report(report_currency="USD", use_deemed_acquisition_cost=False)
-        with open("test-data/data_deemed_acquisition_cost.csv", "rb") as file:
-            report.add_trades(file)
-        self.assertEqual(round(report.prices, 2), Decimal("10957.24"))
-        self.assertEqual(round(report.gains, 2), Decimal("6826.73"))
-        self.assertEqual(round(report.losses, 2), Decimal("0.00"))
-
-    def test_report_currency_eur_lowercase(self):
-        report = Report(report_currency="eur")
-        with open("test-data/data_single_account.csv", "rb") as file:
-            report.add_trades(file)
-        self.assertEqual(round(report.prices, 2), Decimal("8518.52"))
-        self.assertEqual(round(report.gains, 2), Decimal("5964.76"))
-        self.assertEqual(round(report.losses, 2), Decimal("0.00"))
-
-
-class ExchangeTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.rates = ExchangeRates(TEST_URL)
-
-    def setUp(self):
-        Cache.clear()
-
-    def test_self(self):
-        same_same = self.rates.get_rate("USD", "USD", "2015-12-01")
-        self.assertEqual(same_same, 1)
-
-    def test_sek_usd(self):
-        sek_usd = self.rates.get_rate("SEK", "USD", "2015-12-01")
-        self.assertLess(sek_usd, Decimal("0.2"))
-
-    def test_back_and_forth(self):
-        sek_usd = self.rates.get_rate("SEK", "USD", "2015-12-01")
-        usd_sek = self.rates.get_rate("USD", "SEK", "2015-12-01")
-        should_be_one = sek_usd * usd_sek
-        self.assertEqual(should_be_one, 1)
-        self.assertNotEqual(sek_usd, 1)
-
-    def test_from_euro(self):
-        eur_usd = self.rates.get_rate("EUR", "USD", "2015-12-01")
-        self.assertGreater(eur_usd, 1)
-
-    def test_to_euro(self):
-        nok_eur = self.rates.get_rate("NOK", "EUR", "2010-01-01")
-        self.assertLess(nok_eur, Decimal("0.2"))
-
-    @patch("ibkr_report.exchangerates.MAX_BACKTRACK_DAYS", 0)
-    def test_no_backtrack(self):
-        with self.assertRaises(ValueError):
-            self.rates.get_rate("NOK", "EUR", "2010-01-01")
-
-    def test_currency_does_not_exist(self):
-        with self.assertRaises(ValueError):
-            self.rates.get_rate("KEKW", "USD", "2015-12-01")
-
-    def test_far_in_the_future(self):
-        with self.assertRaises(ValueError):
-            self.rates.get_rate("USD", "CAD", "2500-01-01")
-
-    def test_broken_input(self):
-        with open("test-data/eurofxref-broken.csv", "rb") as file:
-            self.rates.add_to_exchange_rates(file)
-        eur_usd = self.rates.get_rate("EUR", "USD", "2021-10-26")
-        self.assertEqual(eur_usd, Decimal("1.1618"))
-        eur_usd = self.rates.get_rate("EUR", "USD", "2021-10-25")
-        self.assertEqual(eur_usd, Decimal("1.1603"))
-
-    def test_download_without_zip(self):
-        rates = ExchangeRates(TEST_BROKEN_URL)
-        eur_usd = rates.get_rate("EUR", "USD", "2021-10-26")
-        self.assertEqual(eur_usd, Decimal("1.1618"))
-        with self.assertRaises(ValueError):
-            eur_usd = rates.get_rate("EUR", "USD", "2021-10-25")
-
-
-class StorageTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.test_data = {"2021-10-25": {"USD": "1.1603"}}
-        os.environ["STORAGE_EMULATOR_HOST"] = "http://localhost:9023"
-        cls._server = create_server(
-            "localhost", 9023, in_memory=True, default_bucket=TEST_BUCKET
-        )
-        cls._server.start()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._server.stop()
-
-    def setUp(self):
-        Cache.clear()
-        self.storage_dir = Path(mkdtemp())
-
-    def tearDown(self):
-        for item in self.storage_dir.iterdir():
-            item.unlink()
-        self.storage_dir.rmdir()
-
-    def test_non_existent_type(self):
-        with self.assertRaises(NotImplementedError):
-            get_storage("not-implemented")
-
-    def test_disabled_storage(self):
-        storage = get_storage()()
-        storage.cache = False
-        storage.save(self.test_data)
-        self.assertEqual(storage.load(), {})
-
-    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
-    def test_google_cloud_storage_save_and_load(self):
-        storage = get_storage(StorageType.GCP)()
-        storage.cache = False
-        storage.save(self.test_data)
-        self.assertEqual(storage.load(), self.test_data)
-
-    def test_gcp_load_not_existing(self):
-        storage = get_storage(StorageType.GCP)(bucket_id=TEST_BUCKET)
-        self.assertEqual(storage.load(), {})
-
-    @mock_s3
-    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
-    def test_aws_s3_save_and_load(self):
-        storage = get_storage(StorageType.AWS)()
-        storage.cache = False
-        storage.save(self.test_data)
-        self.assertEqual(storage.load(), self.test_data)
-
-    @mock_s3
-    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
-    def test_aws_s3_load_not_existing(self):
-        storage = get_storage(StorageType.AWS)()
-        self.assertEqual(storage.load(), {})
-
-    def test_local_save_and_load(self):
-        storage = get_storage(StorageType.LOCAL)(storage_dir=self.storage_dir)
-        storage.cache = False
-        storage.save(self.test_data)
-        self.assertEqual(storage.load(), self.test_data)
-
-    def test_local_load_not_existing(self):
-        storage = get_storage(StorageType.LOCAL)(storage_dir=self.storage_dir)
-        self.assertEqual(storage.load(), {})
-
-    def test_local_custom_file_save_and_load(self):
-        storage = get_storage(StorageType.LOCAL)(storage_dir=self.storage_dir)
-        storage.save(self.test_data, "my-test-file")
-        Cache.clear()
-        self.assertEqual(storage.load("my-test-file"), self.test_data)
-        self.assertEqual(storage.load("not-existing"), {})
-        full_path = self.storage_dir.joinpath("my-test-file")
-        self.assertTrue(full_path.is_file())
-
-    def test_generating_filenames(self):
-        storage = get_storage()()
-        name1 = storage.get_filename("test1")
-        name2 = storage.get_filename("test2")
-        self.assertNotEqual(name1, name2)
-        name_default = storage.get_filename()
-        self.assertNotEqual(name1, name_default)
-        self.assertNotEqual(name2, name_default)
-
-    @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
-    def test_bucket_defined_but_type_not_defined(self):
-        with self.assertRaises(ValueError):
-            get_storage()
 
 
 if __name__ == "__main__":

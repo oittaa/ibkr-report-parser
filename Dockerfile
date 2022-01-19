@@ -16,10 +16,10 @@ COPY bin/ ./bin/
 RUN pip3 install --no-cache-dir .[aws,docker,gcp] --use-feature=in-tree-build
 
 FROM base AS test
-COPY test-data/ ./test-data/
-COPY test.py requirements-dev.txt ./
+COPY tests/ ./tests/
+COPY requirements-dev.txt ./
 RUN pip3 install --no-cache-dir -r requirements-dev.txt --use-feature=in-tree-build && \
-    coverage run test.py && \
+    coverage run -m unittest discover && \
     coverage report -m && \
     coverage xml
 
