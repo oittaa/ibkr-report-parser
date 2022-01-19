@@ -67,8 +67,8 @@ docker run --rm -d -p 8080:8080 --name ibkr-report-parser ibkr-report-parser
 ```python
 from ibkr_report import Report
 
-FILE_1 = "test-data/data_single_account.csv"
-FILE_2 = "test-data/data_multi_account.csv"
+FILE_1 = "tests/test-data/data_single_account.csv"
+FILE_2 = "tests/test-data/data_multi_account.csv"
 
 with open(FILE_1, "rb") as file:
     report = Report(file=file, report_currency="EUR", use_deemed_acquisition_cost=True)

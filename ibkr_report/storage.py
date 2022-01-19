@@ -125,16 +125,10 @@ class GoogleCloudStorage(Storage):
     def __init__(self, bucket_id: str = None) -> None:
         storage = importlib.import_module("google.cloud.storage")
         exceptions = importlib.import_module("google.cloud.exceptions")
-        auth_exceptions = importlib.import_module("google.auth.exceptions")
 
         log.debug("Using %s backend.", self.name)
         self.bucket_id = bucket_id or BUCKET_ID
-        try:
-            client = storage.Client()  # type: ignore
-        except (auth_exceptions.DefaultCredentialsError, OSError):  # type: ignore
-            # Local testing etc.
-            client = storage.Client.create_anonymous_client()  # type: ignore
-            client.project = "<none>"
+        client = storage.Client()  # type: ignore
         try:
             self.bucket = client.get_bucket(self.bucket_id)
         except exceptions.NotFound:  # type: ignore

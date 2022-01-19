@@ -28,6 +28,5 @@ README.md
 MANIFEST.in
 pyproject.toml
 requirements-dev.txt
-test.py
-test-data/
+tests/
 bin/

@@ -28,7 +28,7 @@ setup(
     url=URL,
     author=AUTHOR,
     author_email=AUTHOR_EMAIL,
-    packages=find_packages(),
+    packages=PACKAGES,
     include_package_data=True,
     zip_safe=False,
     keywords=[
@@ -58,7 +58,7 @@ setup(
     extras_require={
         "aws": ["boto3==1.20.39"],
         "docker": ["gunicorn==20.1.0"],
-        "gcp": ["google-cloud-storage==2.0.0"],
+        "gcp": ["google-cloud-storage==2.1.0"],
     },
     python_requires=">=3.7",
 )
