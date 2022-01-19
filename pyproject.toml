@@ -6,4 +6,4 @@ branch = true
 source = ["ibkr_report"]
 
 [tool.mypy]
-files = ["*.py", "ibkr_report/*.py"]
+files = ["*.py", "ibkr_report/*.py", "tests/*.py"]
