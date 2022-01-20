@@ -12,7 +12,6 @@ ENV PORT 8080
 WORKDIR $APP_HOME
 COPY main.py pyproject.toml setup.py MANIFEST.in README.md LICENSE ./
 COPY ibkr_report/ ./ibkr_report/
-COPY bin/ ./bin/
 RUN pip3 install --no-cache-dir .[aws,docker,gcp] --use-feature=in-tree-build
 
 FROM base AS test

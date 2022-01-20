@@ -29,4 +29,3 @@ MANIFEST.in
 pyproject.toml
 requirements-dev.txt
 tests/
-bin/
