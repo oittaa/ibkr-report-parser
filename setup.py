@@ -50,7 +50,11 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
     ],
-    scripts=["bin/ibkr-report-parser", "bin/ibkr-report-parser.py"],
+    entry_points={
+        "console_scripts": [
+            "ibkr-report-parser=ibkr_report.__main__:main",
+        ],
+    },
     setup_requires=[
         "wheel",
     ],
