@@ -89,8 +89,7 @@ for item in report.details:
 ```
 
 ```python
-from ibkr_report import ExchangeRates
-from ibkr_report.definitions import StorageType
+from ibkr_report import ExchangeRates, StorageType
 
 rates = ExchangeRates(storage_type=StorageType.LOCAL, storage_dir="/tmp/my_storage")
 print(rates.get_rate("EUR", "USD", "2020-06-20"))

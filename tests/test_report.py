@@ -3,7 +3,7 @@ import unittest
 from decimal import Decimal
 from unittest.mock import patch
 
-from ibkr_report.report import Report
+from ibkr_report import Report
 from ibkr_report.tools import Cache
 
 THIS_PATH = os.path.abspath(os.getcwd())
