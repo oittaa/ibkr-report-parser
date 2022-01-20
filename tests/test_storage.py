@@ -7,8 +7,7 @@ from unittest.mock import patch
 from gcp_storage_emulator.server import create_server  # type: ignore
 from moto import mock_s3  # type: ignore
 
-from ibkr_report.definitions import StorageType
-from ibkr_report.storage import get_storage
+from ibkr_report import StorageType, get_storage
 from ibkr_report.tools import Cache
 
 TEST_BUCKET = "test"
