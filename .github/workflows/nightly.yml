@@ -16,7 +16,7 @@ jobs:
   lint:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions/setup-python@v3
       - uses: psf/black@stable
 
@@ -26,7 +26,7 @@ jobs:
       matrix:
         python-version: ['3.7', '3.8', '3.9', '3.10']
     steps:
-      - uses: actions/checkout@v2.3.4
+      - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v3
         with:
@@ -58,7 +58,7 @@ jobs:
       matrix:
         arch: ['linux/amd64', 'linux/arm64']
     steps:
-      - uses: actions/checkout@v2.3.5
+      - uses: actions/checkout@v3
       - name: Set REPO_NAME
         run: echo "REPO_NAME=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
       - name: Docker meta
