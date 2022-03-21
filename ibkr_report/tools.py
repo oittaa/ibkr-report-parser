@@ -94,8 +94,6 @@ def calculate_sri_on_file(filename: str) -> str:
     return f"sha384-{hash_base64}"
 
 
-# TODO: mypy "BinaryIO" has no attribute "readinto"  # pylint: disable=fixme
-#       https://github.com/python/mypy/issues/11917
 # TODO: pylint "Module 'hashlib' has no '_Hash' member"  # pylint: disable=fixme
 #       https://github.com/PyCQA/pylint/issues/5395
 def update_hash(
@@ -105,7 +103,7 @@ def update_hash(
     byte_array = bytearray(128 * 1024)
     memory_view = memoryview(byte_array)
     with open(filename, "rb", buffering=0) as file:
-        for block in iter(lambda: file.readinto(memory_view), 0):  # type: ignore
+        for block in iter(lambda: file.readinto(memory_view), 0):
             hash_func.update(memory_view[:block])
 
 
