@@ -68,8 +68,6 @@ CurrencyDict = Dict[str, Dict[str, str]]
 class StrEnum(str, Enum):
     """TODO: StrEnum available in Python 3.11+"""
 
-    ...
-
 
 @unique
 class Field(IntEnum):
