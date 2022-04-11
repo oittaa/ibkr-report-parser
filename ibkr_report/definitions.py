@@ -94,14 +94,6 @@ class AssetCategory(StrEnum):
 
 
 @unique
-class HeaderValue(StrEnum):
-    """Other possible values in a CSV file"""
-
-    TRADES = "Trades"
-    HEADER = "Header"
-
-
-@unique
 class FieldValue(StrEnum):
     """Other possible values in a CSV file"""
 
