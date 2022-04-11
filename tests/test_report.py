@@ -39,6 +39,14 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(round(report.gains, 2), Decimal("5964.76"))
         self.assertEqual(round(report.losses, 2), Decimal("0.00"))
 
+    def test_report_ibkr_2022_format(self):
+        report = Report()
+        with open("tests/test-data/data_single_account_2022.csv", "rb") as file:
+            report.add_trades(file)
+        self.assertEqual(round(report.prices, 2), Decimal("2626.77"))
+        self.assertEqual(round(report.gains, 2), Decimal("429.65"))
+        self.assertEqual(round(report.losses, 2), Decimal("0.00"))
+
 
 if __name__ == "__main__":
     unittest.main()

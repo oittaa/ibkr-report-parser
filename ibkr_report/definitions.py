@@ -3,7 +3,7 @@
 import os
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import Enum, IntEnum, unique
+from enum import Enum, unique
 from typing import Dict
 
 
@@ -41,19 +41,6 @@ MAX_BACKTRACK_DAYS = 7
 MAX_HTTP_RETRIES = 5
 SAVED_RATES_FILE = "official_ecb_exchange_rates-{0}.json.xz"
 
-_SINGLE_ACCOUNT = (
-    "Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,"
-    "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
-).split(",")
-_MULTI_ACCOUNT = (
-    "Trades,Header,DataDiscriminator,Asset Category,Currency,Account,Symbol,Date/Time,Exchange,"
-    "Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code"
-).split(",")
-OFFSET_DICT = {
-    tuple(_SINGLE_ACCOUNT): 0,
-    tuple(_MULTI_ACCOUNT): len(_MULTI_ACCOUNT) - len(_SINGLE_ACCOUNT),
-}
-FIELD_COUNT = len(_SINGLE_ACCOUNT)
 DATE_FORMAT = "%Y-%m-%d"
 TIME_FORMAT = " %H:%M:%S"
 DATE_STR_FORMATS = (
@@ -70,24 +57,24 @@ class StrEnum(str, Enum):
 
 
 @unique
-class Field(IntEnum):
+class Field(StrEnum):
     """CSV indices."""
 
-    TRADES = 0
-    HEADER = 1
-    DATA_DISCRIMINATOR = 2
-    ASSET_CATEGORY = 3
-    CURRENCY = 4
-    SYMBOL = 5
-    DATE_TIME = 6
-    EXCHANGE = 7
-    QUANTITY = 8
-    TRANSACTION_PRICE = 9
-    PROCEEDS = 10
-    COMMISSION_AND_FEES = 11
-    BASIS = 12
-    REALIZED_PL = 13
-    CODE = 14
+    TRADES = "Trades"
+    HEADER = "Header"
+    DATA_DISCRIMINATOR = "DataDiscriminator"
+    ASSET_CATEGORY = "Asset Category"
+    CURRENCY = "Currency"
+    SYMBOL = "Symbol"
+    DATE_TIME = "Date/Time"
+    EXCHANGE = "Exchange"
+    QUANTITY = "Quantity"
+    TRANSACTION_PRICE = "T. Price"
+    PROCEEDS = "Proceeds"
+    COMMISSION_AND_FEES = "Comm/Fee"
+    BASIS = "Basis"
+    REALIZED_PL = "Realized P/L"
+    CODE = "Code"
 
 
 @unique
@@ -104,6 +91,14 @@ class AssetCategory(StrEnum):
 
     STOCKS = "Stocks"
     OPTIONS = "Equity and Index Options"
+
+
+@unique
+class HeaderValue(StrEnum):
+    """Other possible values in a CSV file"""
+
+    TRADES = "Trades"
+    HEADER = "Header"
 
 
 @unique
@@ -130,7 +125,7 @@ class ReportOptions:
 
     report_currency: str
     deemed_acquisition_cost: bool
-    offset: int
+    fields: dict
 
 
 @dataclass

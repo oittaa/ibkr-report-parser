@@ -40,12 +40,12 @@ class Trade:
         self.rates = rates
         self.data = self._row_data(items)
 
-        fee = decimal_cleanup(items[Field.COMMISSION_AND_FEES + self.options.offset])
+        fee = decimal_cleanup(items[self.options.fields.get(Field.COMMISSION_AND_FEES)])
         self.fee = fee / self.data.rate
 
         # Sold stocks have a negative value in the "Quantity" column
         if self.data.quantity < Decimal(0):
-            proceeds = decimal_cleanup(items[Field.PROCEEDS + self.options.offset])
+            proceeds = decimal_cleanup(items[self.options.fields.get(Field.PROCEEDS)])
             self.total_selling_price = proceeds / self.data.rate
         log.debug(
             'Trade: "%s" "%s" %.2f',
@@ -70,7 +70,12 @@ class Trade:
             unit_sell_price, unit_buy_price = unit_buy_price, unit_sell_price
 
         # One option represents 100 shares of the underlying stock
-        multiplier = 100 if items[Field.ASSET_CATEGORY] == AssetCategory.OPTIONS else 1
+        multiplier = (
+            100
+            if items[self.options.fields.get(Field.ASSET_CATEGORY)]
+            == AssetCategory.OPTIONS
+            else 1
+        )
         lot_sell_price = abs(lot_data.quantity) * unit_sell_price * multiplier
         lot_buy_price = abs(lot_data.quantity) * unit_buy_price * multiplier
         lot_fee = lot_data.quantity * self.fee / self.data.quantity
@@ -102,16 +107,18 @@ class Trade:
         )
 
     def _row_data(self, items: Tuple[str, ...]) -> RowData:
-        symbol = items[Field.SYMBOL + self.options.offset]
-        date_str = items[Field.DATE_TIME + self.options.offset]
+        symbol = items[self.options.fields.get(Field.SYMBOL)]
+        date_str = items[self.options.fields.get(Field.DATE_TIME)]
         rate = self.rates.get_rate(
             currency_from=self.options.report_currency,
-            currency_to=items[Field.CURRENCY],
+            currency_to=items[self.options.fields.get(Field.CURRENCY)],
             date_str=date_str,
         )
-        original_price_per_share = items[Field.TRANSACTION_PRICE + self.options.offset]
+        original_price_per_share = items[
+            self.options.fields.get(Field.TRANSACTION_PRICE)
+        ]
         price_per_share = decimal_cleanup(original_price_per_share) / rate
-        quantity = decimal_cleanup(items[Field.QUANTITY + self.options.offset])
+        quantity = decimal_cleanup(items[self.options.fields.get(Field.QUANTITY)])
         return RowData(symbol, date_str, rate, price_per_share, quantity)
 
     def _validate_lot(self, lot_data: RowData) -> None:

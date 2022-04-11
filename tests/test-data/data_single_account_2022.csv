@@ -1,0 +1,5 @@
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Equity and Index Options,USD,SPY 18MAR22 440.0 P,"2022-03-01, 11:02:15",-,-2,14.66,16.7975,2932,-1.4176132,-2483.2827,447.299686,-427.5,C
+Trades,Data,Trade,Equity and Index Options,USD,SPY 18MAR22 440.0 P,"2022-03-01, 11:02:15",MERCURY,-2,14.66,16.7975,2932,-1.4176132,-2483.2827,447.299686,-427.5,C
+Trades,Data,ClosedLot,Equity and Index Options,USD,SPY 18MAR22 440.0 P,2021-12-14,,2,12.4164135,,,,2483.2827,447.299686,,ST
+Trades,SubTotal,,Equity and Index Options,USD,SPY 18MAR22 440.0 P,,,-2,,,2932,-1.4176132,-2483.2827,447.299686,-427.5,
