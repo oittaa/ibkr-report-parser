@@ -4,6 +4,7 @@ requires = ["setuptools", "wheel"]
 [tool.coverage.run]
 branch = true
 source = ["ibkr_report"]
+omit = ["ibkr_report/__main__.py"]
 
 [tool.mypy]
 files = ["*.py", "ibkr_report/*.py", "tests/*.py"]
