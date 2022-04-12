@@ -96,10 +96,7 @@ class Report:
         return False
 
     def _handle_one_line(self, items: Tuple[str, ...]) -> None:
-        if all(
-                item in items
-                for item in Field
-        ):
+        if all(item in items for item in Field):
             self.options.fields = {}
             self._trade = None
             for index, item in enumerate(items):
