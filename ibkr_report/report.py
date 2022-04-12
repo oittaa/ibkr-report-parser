@@ -83,15 +83,8 @@ class Report:
     def is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
         """Checks whether the current row is part of a trade or not."""
         if (
-            all(
-                item in self.options.fields
-                for item in [
-                    Field.TRADES,
-                    Field.HEADER,
-                    Field.DATA_DISCRIMINATOR,
-                    Field.ASSET_CATEGORY,
-                ]
-            )
+            self.options.fields
+            and len(self.options.fields) == len(items)
             and items[self.options.fields[Field.TRADES]] == FieldValue.TRADES
             and items[self.options.fields[Field.HEADER]] == FieldValue.HEADER
             and items[self.options.fields[Field.DATA_DISCRIMINATOR]]
@@ -103,7 +96,10 @@ class Report:
         return False
 
     def _handle_one_line(self, items: Tuple[str, ...]) -> None:
-        if len(items) > 2 and items[0] == Field.TRADES and items[1] == Field.HEADER:
+        if all(
+                item in items
+                for item in Field
+        ):
             self.options.fields = {}
             self._trade = None
             for index, item in enumerate(items):
