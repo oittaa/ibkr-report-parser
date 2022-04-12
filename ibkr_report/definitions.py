@@ -58,7 +58,7 @@ class StrEnum(str, Enum):
 
 @unique
 class Field(StrEnum):
-    """CSV indices."""
+    """CSV fields used by the application"""
 
     TRADES = "Trades"
     HEADER = "Header"
@@ -67,14 +67,10 @@ class Field(StrEnum):
     CURRENCY = "Currency"
     SYMBOL = "Symbol"
     DATE_TIME = "Date/Time"
-    EXCHANGE = "Exchange"
     QUANTITY = "Quantity"
     TRANSACTION_PRICE = "T. Price"
     PROCEEDS = "Proceeds"
     COMMISSION_AND_FEES = "Comm/Fee"
-    BASIS = "Basis"
-    REALIZED_PL = "Realized P/L"
-    CODE = "Code"
 
 
 @unique
@@ -117,7 +113,7 @@ class ReportOptions:
 
     report_currency: str
     deemed_acquisition_cost: bool
-    fields: dict
+    fields: Dict[str, int]
 
 
 @dataclass
