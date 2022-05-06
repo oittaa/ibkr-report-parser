@@ -15,7 +15,7 @@ jobs:
     - uses: actions/checkout@v3
     - name: Docker meta
       id: meta
-      uses: docker/metadata-action@v3.8.0
+      uses: docker/metadata-action@v4.0.1
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
     - name: Set up QEMU
