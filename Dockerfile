@@ -12,12 +12,12 @@ ENV PORT 8080
 WORKDIR $APP_HOME
 COPY main.py pyproject.toml setup.py MANIFEST.in README.md LICENSE ./
 COPY ibkr_report/ ./ibkr_report/
-RUN pip3 install --no-cache-dir .[aws,docker,gcp] --use-feature=in-tree-build
+RUN pip3 install --no-cache-dir -e .[aws,docker,gcp]
 
 FROM base AS test
 COPY tests/ ./tests/
 COPY requirements-dev.txt ./
-RUN pip3 install --no-cache-dir -r requirements-dev.txt --use-feature=in-tree-build && \
+RUN pip3 install --no-cache-dir -r requirements-dev.txt && \
     coverage run -m unittest discover && \
     coverage report -m && \
     coverage xml
