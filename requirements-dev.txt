@@ -1,4 +1,4 @@
-coverage[toml]==6.3.2
+coverage[toml]==6.3.3
 flake8==4.0.1
 gcp-storage-emulator==2022.4.13
 moto[s3]==3.1.8
