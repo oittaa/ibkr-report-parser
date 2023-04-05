@@ -1,2 +1,2 @@
-flask==2.2.2
+flask==2.2.3
 google-cloud-storage==2.5.0
