@@ -57,7 +57,7 @@ class Report:
 
     def __init__(
         self,
-        file: Iterable[bytes] = None,
+        file: Optional[Iterable[bytes]] = None,
         report_currency: str = CURRENCY,
         use_deemed_acquisition_cost: bool = USE_DEEMED_ACQUISITION_COST,
     ) -> None:

@@ -28,7 +28,7 @@ class Storage(ABC):
 
     cache: bool = True
 
-    def save(self, content: CurrencyDict, filename: str = None) -> None:
+    def save(self, content: CurrencyDict, filename: Optional[str] = None) -> None:
         """Save CurrencyDict to storage."""
         filename = filename or self.get_filename()
         log.debug("Save to '%s' using %s backend.", filename, self.name)
@@ -36,7 +36,7 @@ class Storage(ABC):
             Cache.set(filename, content)
         self._save(content, filename)
 
-    def load(self, filename: str = None) -> CurrencyDict:
+    def load(self, filename: Optional[str] = None) -> CurrencyDict:
         """Load CurrencyDict from storage."""
         filename = filename or self.get_filename()
         log.debug("Load '%s' using %s backend.", filename, self.name)
@@ -65,7 +65,7 @@ class Storage(ABC):
         return self.__class__.__name__
 
     @staticmethod
-    def get_filename(identifier: str = None) -> str:
+    def get_filename(identifier: Optional[str] = None) -> str:
         """Generate a filename based on the current date.
 
         Optionally you can give your own identifier that distinguishes files.
@@ -98,7 +98,7 @@ class StorageDisabled(Storage):
 class AmazonS3(Storage):
     """Amazon S3 backend"""
 
-    def __init__(self, bucket_id: str = None) -> None:
+    def __init__(self, bucket_id: Optional[str] = None) -> None:
         boto3 = importlib.import_module("boto3")
 
         log.debug("Using %s backend.", self.name)
@@ -122,7 +122,7 @@ class AmazonS3(Storage):
 class GoogleCloudStorage(Storage):
     """Google Cloud Storage backend"""
 
-    def __init__(self, bucket_id: str = None) -> None:
+    def __init__(self, bucket_id: Optional[str] = None) -> None:
         storage = importlib.import_module("google.cloud.storage")
         exceptions = importlib.import_module("google.cloud.exceptions")
 
@@ -165,7 +165,7 @@ class LocalStorage(Storage):
             return {}
 
 
-def get_storage(storage_type: StorageType = None) -> Type[Storage]:
+def get_storage(storage_type: Optional[StorageType] = None) -> Type[Storage]:
     """Returns a storage backend."""
     if storage_type is None:
         storage_type = StorageType(STORAGE_TYPE)
@@ -182,7 +182,9 @@ def get_storage(storage_type: StorageType = None) -> Type[Storage]:
     raise NotImplementedError(f"Not implemented: {storage_type!r}")
 
 
-def get_cloud_storage(storage_type: StorageType = None) -> Optional[Type[Storage]]:
+def get_cloud_storage(
+    storage_type: Optional[StorageType] = None,
+) -> Optional[Type[Storage]]:
     """Cloud storages with storage buckets."""
     if storage_type is StorageType.AWS:
         return AmazonS3
