@@ -7,7 +7,7 @@ from codecs import iterdecode
 from datetime import timedelta
 from decimal import Decimal
 from io import BytesIO
-from typing import Iterable
+from typing import Iterable, Optional
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
@@ -32,7 +32,10 @@ class ExchangeRates:
     rates: CurrencyDict
 
     def __init__(
-        self, url: str = None, storage_type: StorageType = None, **kwargs
+        self,
+        url: Optional[str] = None,
+        storage_type: Optional[StorageType] = None,
+        **kwargs,
     ) -> None:
         """Tries to fetch a previously built exchange rate dictionary from a
         Storage backend. If that's not available, downloads the official
