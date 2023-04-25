@@ -3,4 +3,4 @@ flake8==6.0.0
 gcp-storage-emulator==2022.6.11
 moto[s3]==4.1.8
 mypy==1.2.0
-pylint==2.17.2
+pylint==2.17.3
