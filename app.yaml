@@ -1,4 +1,4 @@
-runtime: python39
+runtime: python311
 
 env_variables:
   BUCKET_ID: ibkr-report-parser
