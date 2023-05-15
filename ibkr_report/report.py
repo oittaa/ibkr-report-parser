@@ -80,7 +80,7 @@ class Report:
         except UnicodeDecodeError as err:
             raise ValueError("Input data not in UTF-8 text format.") from err
 
-    def is_stock_or_options_trade(self, items: Tuple[str, ...]) -> bool:
+    def is_trade(self, items: Tuple[str, ...]) -> bool:
         """Checks whether the current row is part of a trade or not."""
         if (
             len(self.options.fields) == len(items)
@@ -89,7 +89,7 @@ class Report:
             and items[self.options.fields[Field.DATA_DISCRIMINATOR]]
             in (DataDiscriminator.TRADE, DataDiscriminator.CLOSED_LOT)
             and items[self.options.fields[Field.ASSET_CATEGORY]]
-            in (AssetCategory.STOCKS, AssetCategory.OPTIONS)
+            in (AssetCategory.STOCKS, AssetCategory.OPTIONS, AssetCategory.WARRANTS)
         ):
             return True
         return False
@@ -101,7 +101,7 @@ class Report:
             for index, item in enumerate(items):
                 self.options.fields[item] = index
             return
-        if self.options.fields and self.is_stock_or_options_trade(items):
+        if self.options.fields and self.is_trade(items):
             self._handle_trade(items)
 
     def _handle_trade(self, items: Tuple[str, ...]) -> None:
