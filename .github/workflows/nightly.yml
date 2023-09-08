@@ -82,7 +82,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-x-${{ matrix.arch }}-
       - name: Build
-        uses: docker/build-push-action@v4.1.1
+        uses: docker/build-push-action@v4.2.0
         with:
           platforms: ${{ matrix.arch }}
           push: false
