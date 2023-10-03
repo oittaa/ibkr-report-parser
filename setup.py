@@ -60,7 +60,7 @@ setup(
     ],
     install_requires=["flask==2.3.3"],
     extras_require={
-        "aws": ["boto3==1.28.57"],
+        "aws": ["boto3==1.28.58"],
         "docker": ["gunicorn==21.2.0"],
         "gcp": ["google-cloud-storage==2.11.0"],
     },
