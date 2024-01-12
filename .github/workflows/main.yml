@@ -85,7 +85,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-x-${{ matrix.arch }}-
       - name: Build
-        uses: docker/build-push-action@v5.0.0
+        uses: docker/build-push-action@v5.1.0
         with:
           platforms: ${{ matrix.arch }}
           push: false
@@ -146,7 +146,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
-        uses: docker/build-push-action@v5.0.0
+        uses: docker/build-push-action@v5.1.0
         with:
           platforms: linux/amd64,linux/arm64
           push: true
