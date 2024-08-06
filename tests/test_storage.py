@@ -5,7 +5,7 @@ from tempfile import mkdtemp
 from unittest.mock import patch
 
 from gcp_storage_emulator.server import create_server  # type: ignore
-from moto import mock_s3  # type: ignore
+from moto import mock_aws  # type: ignore
 
 from ibkr_report import StorageType, get_storage
 from ibkr_report.tools import Cache
@@ -57,7 +57,7 @@ class StorageTests(unittest.TestCase):
         storage = get_storage(StorageType.GCP)(bucket_id=TEST_BUCKET)
         self.assertEqual(storage.load(), {})
 
-    @mock_s3
+    @mock_aws
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_aws_s3_save_and_load(self):
         storage = get_storage(StorageType.AWS)()
@@ -65,7 +65,7 @@ class StorageTests(unittest.TestCase):
         storage.save(self.test_data)
         self.assertEqual(storage.load(), self.test_data)
 
-    @mock_s3
+    @mock_aws
     @patch("ibkr_report.storage.BUCKET_ID", TEST_BUCKET)
     def test_aws_s3_load_not_existing(self):
         storage = get_storage(StorageType.AWS)()
