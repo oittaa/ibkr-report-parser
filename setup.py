@@ -63,7 +63,7 @@ setup(
     extras_require={
         "aws": ["boto3==1.34.154"],
         "docker": ["gunicorn==22.0.0"],
-        "gcp": ["google-cloud-storage==2.18.0"],
+        "gcp": ["google-cloud-storage==2.18.1"],
     },
     python_requires=">=3.8",
 )
