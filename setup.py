@@ -59,7 +59,7 @@ setup(
     setup_requires=[
         "wheel",
     ],
-    install_requires=["flask==3.1.0"],
+    install_requires=["flask==3.1.1"],
     extras_require={
         "aws": ["boto3==1.38.41"],
         "docker": ["gunicorn==23.0.0"],
