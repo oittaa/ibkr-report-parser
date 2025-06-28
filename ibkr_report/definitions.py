@@ -87,6 +87,7 @@ class AssetCategory(StrEnum):
 
     STOCKS = "Stocks"
     OPTIONS = "Equity and Index Options"
+    WARRANTS = "Warrants"
 
 
 @unique
