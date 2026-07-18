@@ -59,7 +59,7 @@ class SmokeTests(unittest.TestCase):
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
-        self.assertEqual(data_json["prices"], 6873.02)
+        self.assertEqual(data_json["prices"], 6870.76)
         self.assertEqual(data_json["gains"], 1064.02)
         self.assertEqual(data_json["losses"], 445.98)
 
@@ -73,7 +73,7 @@ class SmokeTests(unittest.TestCase):
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
-        self.assertEqual(data_json["prices"], 6034.30)
+        self.assertEqual(data_json["prices"], 6033.44)
         self.assertEqual(data_json["gains"], 2644.18)
         self.assertEqual(data_json["losses"], 0.00)
 
@@ -82,7 +82,8 @@ class SmokeTests(unittest.TestCase):
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
-        self.assertEqual(data_json["prices"], 6034.30)
+        # Open short without ClosedLot: no disposal row, so no selling price.
+        self.assertEqual(data_json["prices"], 0.0)
         self.assertEqual(data_json["gains"], 0.00)
         self.assertEqual(data_json["losses"], 0.00)
 

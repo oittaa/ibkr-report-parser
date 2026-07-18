@@ -111,7 +111,6 @@ class Report:
             == DataDiscriminator.TRADE
         ):
             self._trade = Trade(items, self.options, self.rates)
-            self.prices += self._trade.total_selling_price
         if (
             items[self.options.fields[Field.DATA_DISCRIMINATOR]]
             == DataDiscriminator.CLOSED_LOT
@@ -119,6 +118,8 @@ class Report:
             if not self._trade:
                 raise ValueError("Tried to close a lot without trades.")
             details = self._trade.details_from_closed_lot(items)
+            # Sum detail prices so the total matches the result table (#1458).
+            self.prices += details.price
             if details.realized > 0:
                 self.gains += details.realized
             else:

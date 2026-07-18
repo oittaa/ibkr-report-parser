@@ -27,7 +27,6 @@ class Trade:
 
     fee: Decimal = Decimal(0)
     closed_quantity: Decimal = Decimal(0)
-    total_selling_price: Decimal = Decimal(0)
     data: RowData
     options: ReportOptions
     rates: ExchangeRates
@@ -35,18 +34,13 @@ class Trade:
     def __init__(
         self, items: Tuple[str, ...], options: ReportOptions, rates: ExchangeRates
     ) -> None:
-        """Initializes the Trade and calculates the total selling price from it."""
+        """Initializes the Trade from a CSV Trade row."""
         self.options = options
         self.rates = rates
         self.data = self._row_data(items)
 
         fee = decimal_cleanup(items[self.options.fields[Field.COMMISSION_AND_FEES]])
         self.fee = fee / self.data.rate
-
-        # Sold stocks have a negative value in the "Quantity" column
-        if self.data.quantity < Decimal(0):
-            proceeds = decimal_cleanup(items[self.options.fields[Field.PROCEEDS]])
-            self.total_selling_price = proceeds / self.data.rate
         log.debug(
             'Trade: "%s" "%s" %.2f',
             self.data.date_str,
