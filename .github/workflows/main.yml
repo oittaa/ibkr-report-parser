@@ -55,7 +55,7 @@ jobs:
           coverage report -m
           coverage xml
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           flags: unittests
 
