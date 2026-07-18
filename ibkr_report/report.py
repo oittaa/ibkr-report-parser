@@ -90,6 +90,9 @@ class Report:
             rows = [tuple(items) for items in csv.reader(iterdecode(file, "utf-8"))]
         except UnicodeDecodeError as err:
             raise ValueError("Input data not in UTF-8 text format.") from err
+        except csv.Error as err:
+            # e.g. binary uploads: "_csv.Error: line contains NUL" (Python 3.10+)
+            raise ValueError("Input data is not a valid CSV file.") from err
 
         # Stocks often appear before options in IBKR statements; scan premiums first.
         premiums = self._collect_assignment_premiums(rows)
