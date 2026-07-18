@@ -14,15 +14,15 @@ COPY main.py pyproject.toml setup.py MANIFEST.in README.md LICENSE ./
 COPY ibkr_report/ ./ibkr_report/
 RUN pip3 install --no-cache-dir -e .[aws,docker,gcp]
 
+# Optional local/debug stage: docker build --target test
 FROM base AS test
 COPY tests/ ./tests/
 COPY requirements-dev.txt ./
 RUN pip3 install --no-cache-dir -r requirements-dev.txt && \
     coverage run -m unittest discover && \
-    coverage report -m && \
-    coverage xml
+    coverage report -m
 
+# Default production image (CI smoke + GHCR). Unit tests run on GitHub Actions runners.
 FROM base AS prod
-COPY --from=test ${APP_HOME}/coverage.xml .
 ENTRYPOINT []
 CMD ["sh", "-c", "gunicorn --bind :$PORT --workers $GUNICORN_WORKERS --threads $GUNICORN_THREADS --timeout 0 main:app"]
