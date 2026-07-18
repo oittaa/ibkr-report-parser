@@ -197,7 +197,11 @@ class Report:
                 else:
                     trade = None
                 continue
-            if disc == DataDiscriminator.CLOSED_LOT and trade and trade.omit_closed_lots:
+            if (
+                disc == DataDiscriminator.CLOSED_LOT
+                and trade
+                and trade.omit_closed_lots
+            ):
                 premium = trade.option_premium_from_closed_lot(items)
                 shares = trade.option_shares_from_closed_lot(items)
                 key = (

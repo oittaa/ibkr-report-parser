@@ -51,9 +51,8 @@ class Trade:
         self.asset_category = items[self.options.fields[Field.ASSET_CATEGORY]]
         self.currency = items[self.options.fields[Field.CURRENCY]]
         self.codes = self._parse_codes(items)
-        self.omit_closed_lots = (
-            self.asset_category == AssetCategory.OPTIONS
-            and bool(self.codes & EXERCISE_ASSIGNMENT_CODES)
+        self.omit_closed_lots = self.asset_category == AssetCategory.OPTIONS and bool(
+            self.codes & EXERCISE_ASSIGNMENT_CODES
         )
         self.is_stock_exercise_assignment = (
             self.asset_category == AssetCategory.STOCKS
