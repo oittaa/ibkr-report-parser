@@ -4,6 +4,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from ibkr_report import ExchangeRates
+from ibkr_report.exchangerates import clear_rate_parse_cache
 from ibkr_report.tools import Cache
 
 THIS_PATH = os.path.abspath(os.getcwd())
@@ -14,6 +15,7 @@ TEST_BROKEN_URL = f"file://{THIS_PATH}/tests/test-data/eurofxref-broken.csv"
 class ExchangeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        clear_rate_parse_cache()
         cls.rates = ExchangeRates(TEST_URL)
 
     def setUp(self):
@@ -69,6 +71,21 @@ class ExchangeTests(unittest.TestCase):
         self.assertEqual(eur_usd, Decimal("1.1618"))
         with self.assertRaises(ValueError):
             eur_usd = rates.get_rate("EUR", "USD", "2021-10-25")
+
+    def test_process_cache_avoids_reparse_after_tools_cache_clear(self):
+        """Parsed rates stay in process memory across tools.Cache.clear()."""
+        clear_rate_parse_cache()
+        first = ExchangeRates(TEST_URL)
+        Cache.clear()
+        with patch.object(
+            ExchangeRates, "download_official_rates", autospec=True
+        ) as download:
+            second = ExchangeRates(TEST_URL)
+            download.assert_not_called()
+        self.assertEqual(
+            first.get_rate("EUR", "USD", "2015-12-01"),
+            second.get_rate("EUR", "USD", "2015-12-01"),
+        )
 
 
 if __name__ == "__main__":

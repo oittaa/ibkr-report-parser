@@ -2,12 +2,11 @@
 
 import csv
 import logging
-import re
 from codecs import iterdecode
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from io import BytesIO
-from typing import Iterable, Optional
+from typing import Dict, Iterable, Optional, Tuple
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
@@ -20,10 +19,69 @@ from ibkr_report.definitions import (
     CurrencyDict,
     StorageType,
 )
-from ibkr_report.tools import get_date, is_number
 from ibkr_report.storage import get_storage
+from ibkr_report.tools import get_date
 
 log = logging.getLogger(__name__)
+
+# ECB marks missing observations as N/A; empty cells appear too.
+_MISSING_RATE = frozenset({"", "N/A", "n/a"})
+
+# Process-level cache of fully parsed rate tables. Keyed by source URL and the
+# calendar day the table was loaded so tests (and multi-request web workers)
+# do not re-parse the large ECB zip after tools.Cache.clear() or with storage
+# disabled. Invalidates automatically when the local date changes.
+_ParsedRatesKey = Tuple[str, str]  # (url, YYYY-MM-DD)
+_parsed_rates_cache: Dict[_ParsedRatesKey, CurrencyDict] = {}
+
+
+def clear_rate_parse_cache() -> None:
+    """Drop in-process parsed rate tables (for tests that need a cold load)."""
+    _parsed_rates_cache.clear()
+
+
+def _today_key() -> str:
+    return date.today().strftime(DATE_FORMAT)
+
+
+def _copy_rates(rates: CurrencyDict) -> CurrencyDict:
+    """Shallow-copy date -> currency map so callers can mutate safely."""
+    return {day: dict(day_rates) for day, day_rates in rates.items()}
+
+
+def _cache_get_parsed_rates(url: str) -> Optional[CurrencyDict]:
+    cached = _parsed_rates_cache.get((url, _today_key()))
+    if cached is None:
+        return None
+    return _copy_rates(cached)
+
+
+def _cache_set_parsed_rates(url: str, rates: CurrencyDict) -> None:
+    # Drop entries from other days so the cache cannot grow without bound.
+    today = _today_key()
+    stale = [key for key in _parsed_rates_cache if key[1] != today]
+    for key in stale:
+        del _parsed_rates_cache[key]
+    _parsed_rates_cache[(url, today)] = _copy_rates(rates)
+
+
+def _is_rate_value(val: str) -> bool:
+    """True if `val` looks like a numeric FX rate (avoids try/except per cell)."""
+    if not val or val in _MISSING_RATE:
+        return False
+    # Rates are non-negative decimals like "1.1579" or "137.37".
+    if val[0] == "-":
+        return False
+    saw_digit = False
+    saw_dot = False
+    for ch in val:
+        if ch.isdigit():
+            saw_digit = True
+        elif ch == "." and not saw_dot:
+            saw_dot = True
+        else:
+            return False
+    return saw_digit
 
 
 class ExchangeRates:
@@ -46,9 +104,19 @@ class ExchangeRates:
         storage = get_storage(storage_type=storage_type)
         self.storage = storage(**kwargs)
         self.rates = self.storage.load()
-        if not self.rates:
-            self.download_official_rates(url)
-            self.storage.save(content=self.rates)
+        if self.rates:
+            _cache_set_parsed_rates(url, self.rates)
+            return
+
+        cached = _cache_get_parsed_rates(url)
+        if cached is not None:
+            log.debug("Using in-process exchange rate cache for %s", url)
+            self.rates = cached
+            return
+
+        self.download_official_rates(url)
+        self.storage.save(content=self.rates)
+        _cache_set_parsed_rates(url, self.rates)
 
     def add_to_exchange_rates(self, rates_file: Iterable[bytes]) -> None:
         """Builds the dictionary for the exchange rates from the downloaded CSV file
@@ -57,23 +125,26 @@ class ExchangeRates:
         {"2015-01-20": {"USD": "1.1579", ...}, ...}
         """
         rates: CurrencyDict = {}
-        currencies = []
+        currencies: list[str] = []
         for items in csv.reader(iterdecode(rates_file, "utf-8")):
+            if not items:
+                continue
             if items[0] == "Date":
                 # The first row should be "Date,USD,JPY,..."
                 currencies = items[1:]
-            if currencies and re.match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
-                # And the following rows like "2015-01-20,1.1579,137.37,..."
-                date_rates = {
-                    cur: val
-                    for cur, val in zip(currencies, items[1:])
-                    if is_number(val)
-                }
-                if date_rates:
-                    rates[items[0]] = date_rates
+                continue
+            # Data rows: "2015-01-20,1.1579,137.37,..."
+            if not currencies or len(items[0]) != 10 or items[0][4] != "-":
+                continue
+            date_rates = {
+                cur: val
+                for cur, val in zip(currencies, items[1:])
+                if _is_rate_value(val)
+            }
+            if date_rates:
+                rates[items[0]] = date_rates
         log.debug("Adding currency data from %d rows.", len(rates))
-        self.rates = {**self.rates, **rates}
-        # TODO: Python3.9+ "self.rates |= rates"  # pylint: disable=fixme
+        self.rates |= rates
 
     def download_official_rates(self, url: str) -> None:
         """Downloads the official currency exchange rates from European Central Bank

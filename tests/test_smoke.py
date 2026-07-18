@@ -7,6 +7,7 @@ from urllib.error import HTTPError
 
 from ibkr_report import create_app
 from ibkr_report.definitions import FieldValue, _strtobool
+from ibkr_report.exchangerates import clear_rate_parse_cache
 from ibkr_report.tools import Cache, calculate_sri_on_file
 
 TEST_BUCKET = "test"
@@ -170,6 +171,7 @@ class SmokeTests(unittest.TestCase):
 
     def test_404_error_from_downloading(self):
         Cache.clear()
+        clear_rate_parse_cache()
         with patch(
             "ibkr_report.exchangerates.urlopen",
             side_effect=HTTPError("", 404, "Test", {}, None),
