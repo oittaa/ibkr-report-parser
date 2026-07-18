@@ -47,6 +47,25 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(round(report.gains, 2), Decimal("429.65"))
         self.assertEqual(round(report.losses, 2), Decimal("0.00"))
 
+    def test_warrants(self):
+        """Warrants use Asset Category 'Warrants' and stock-like multiplier 1.
+
+        Sample from https://github.com/oittaa/ibkr-report-parser/issues/522
+        (GH8MB6). ClosedLot T. Price is reconstructed as unit cost including
+        buy commission: 282.735 / 100 = 2.82735.
+        """
+        report = Report(use_deemed_acquisition_cost=False)
+        with open("tests/test-data/data_warrants.csv", "rb") as file:
+            report.add_trades(file)
+        self.assertEqual(round(report.prices, 2), Decimal("272.00"))
+        self.assertEqual(round(report.gains, 2), Decimal("0.00"))
+        self.assertEqual(round(report.losses, 2), Decimal("12.46"))
+        self.assertEqual(len(report.details), 1)
+        self.assertEqual(report.details[0].symbol, "GH8MB6")
+        self.assertEqual(report.details[0].quantity, Decimal("100"))
+        self.assertEqual(report.details[0].buy_date, "2022-11-23")
+        self.assertEqual(report.details[0].sell_date, "2022-11-24")
+
 
 if __name__ == "__main__":
     unittest.main()

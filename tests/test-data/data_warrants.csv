@@ -1,0 +1,7 @@
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Exchange,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Warrants,EUR,GH8MB6,"2022-11-23, 11:22:06",-,100,2.81,3.02,-281,-1.735,282.735,0,21,O
+Trades,Data,Trade,Warrants,EUR,GH8MB6,"2022-11-23, 11:22:06",SWB,100,2.81,3.02,-281,-1.735,282.735,0,21,O
+Trades,Data,Order,Warrants,EUR,GH8MB6,"2022-11-24, 02:10:23",-,-100,2.72,2.29,272,-1.725,-282.735,-12.46,43,C
+Trades,Data,Trade,Warrants,EUR,GH8MB6,"2022-11-24, 02:10:23",FWB,-100,2.72,2.29,272,-1.725,-282.735,-12.46,43,C
+Trades,Data,ClosedLot,Warrants,EUR,GH8MB6,2022-11-23,,100,2.82735,,,,282.735,-12.46,,ST
+Trades,SubTotal,,Warrants,EUR,GH8MB6,,,-100,,,272,-1.725,-282.735,-12.46,43,
