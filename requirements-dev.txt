@@ -5,4 +5,4 @@ moto[s3]==5.2.2
 mypy==2.3.0
 pylint==4.0.6
 # setuptools>=82 removed pkg_resources; fs (via gcp-storage-emulator) still needs it
-setuptools>=70,<82
+setuptools>=83.0.0,<84
