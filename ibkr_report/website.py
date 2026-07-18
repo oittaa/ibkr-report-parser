@@ -7,7 +7,6 @@ from ibkr_report.definitions import TITLE
 from ibkr_report.report import Report
 from ibkr_report.tools import set_logging, _sri
 
-
 bp = Blueprint("website", __name__)
 
 
