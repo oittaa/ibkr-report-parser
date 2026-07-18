@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum, unique
-from typing import Dict, Set
+from typing import Dict
 
 
 def _strtobool(val: str) -> bool:
