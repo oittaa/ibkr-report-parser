@@ -56,14 +56,13 @@ class Report:
         rates (ExchangeRates): Euro foreign exchange rates.
     """
 
-    prices: Decimal = Decimal(0)
-    gains: Decimal = Decimal(0)
-    losses: Decimal = Decimal(0)
+    prices: Decimal
+    gains: Decimal
+    losses: Decimal
     details: List[TradeDetails]
     options: ReportOptions
     rates: ExchangeRates
-    _trade: Optional[Trade] = None
-    _assignment_premiums: AssignmentPremiumMap
+    _trade: Optional[Trade]
 
     def __init__(
         self,
@@ -71,6 +70,9 @@ class Report:
         report_currency: str = CURRENCY,
         use_deemed_acquisition_cost: bool = USE_DEEMED_ACQUISITION_COST,
     ) -> None:
+        self.prices = Decimal(0)
+        self.gains = Decimal(0)
+        self.losses = Decimal(0)
         self.details = []
         self.options = ReportOptions(
             report_currency=report_currency.upper(),
@@ -78,7 +80,7 @@ class Report:
             fields={},
         )
         self.rates = ExchangeRates()
-        self._assignment_premiums = defaultdict(list)
+        self._trade = None
         if file:
             self.add_trades(file)
 
@@ -90,11 +92,11 @@ class Report:
             raise ValueError("Input data not in UTF-8 text format.") from err
 
         # Stocks often appear before options in IBKR statements; scan premiums first.
-        self._assignment_premiums = self._collect_assignment_premiums(rows)
+        premiums = self._collect_assignment_premiums(rows)
         self.options.fields = {}
         self._trade = None
         for items in rows:
-            self._handle_one_line(items)
+            self._handle_one_line(items, premiums)
 
     def is_trade(self, items: Tuple[str, ...]) -> bool:
         """Checks whether the current row is part of a trade or not."""
@@ -110,7 +112,9 @@ class Report:
             return True
         return False
 
-    def _handle_one_line(self, items: Tuple[str, ...]) -> None:
+    def _handle_one_line(
+        self, items: Tuple[str, ...], premiums: AssignmentPremiumMap
+    ) -> None:
         if all(item in items for item in Field):
             self.options.fields = {}
             self._trade = None
@@ -118,9 +122,11 @@ class Report:
                 self.options.fields[item] = index
             return
         if self.options.fields and self.is_trade(items):
-            self._handle_trade(items)
+            self._handle_trade(items, premiums)
 
-    def _handle_trade(self, items: Tuple[str, ...]) -> None:
+    def _handle_trade(
+        self, items: Tuple[str, ...], premiums: AssignmentPremiumMap
+    ) -> None:
         """Parses prices, gains, and losses from trades."""
         if (
             items[self.options.fields[Field.DATA_DISCRIMINATOR]]
@@ -149,7 +155,7 @@ class Report:
                     decimal_cleanup(items[self.options.fields[Field.QUANTITY]])
                 )
                 premium = self._consume_assignment_premium(
-                    self._trade.data.symbol, sell_date, lot_qty
+                    premiums, self._trade.data.symbol, sell_date, lot_qty
                 )
 
             details = self._trade.details_from_closed_lot(
@@ -218,11 +224,12 @@ class Report:
                 )
         return premiums
 
+    @staticmethod
     def _consume_assignment_premium(
-        self, symbol: str, date: str, shares: Decimal
+        premiums: AssignmentPremiumMap, symbol: str, date: str, shares: Decimal
     ) -> Decimal:
         """Allocate option premium to a stock lot closed by assignment/exercise."""
-        pools = self._assignment_premiums.get((symbol, date))
+        pools = premiums.get((symbol, date))
         if not pools:
             return Decimal(0)
 
