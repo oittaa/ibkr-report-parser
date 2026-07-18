@@ -131,46 +131,39 @@ class Report:
         self, items: Tuple[str, ...], premiums: AssignmentPremiumMap
     ) -> None:
         """Parses prices, gains, and losses from trades."""
-        if (
-            items[self.options.fields[Field.DATA_DISCRIMINATOR]]
-            == DataDiscriminator.TRADE
-        ):
+        discriminator = items[self.options.fields[Field.DATA_DISCRIMINATOR]]
+        if discriminator == DataDiscriminator.TRADE:
             self._trade = Trade(items, self.options, self.rates)
-        if (
-            items[self.options.fields[Field.DATA_DISCRIMINATOR]]
-            == DataDiscriminator.CLOSED_LOT
-        ):
-            if not self._trade:
-                raise ValueError("Tried to close a lot without trades.")
-            # Option exercise/assignment: premium is reported on the stock leg (#1191).
-            if self._trade.omit_closed_lots:
-                log.info(
-                    "Skipping option ClosedLot for %s (codes %s) — exercise/assignment",
-                    self._trade.data.symbol,
-                    self._trade.codes,
-                )
-                return
-
-            premium = Decimal(0)
-            if self._trade.is_stock_exercise_assignment:
-                sell_date = date_without_time(self._trade.data.date_str)
-                lot_qty = abs(
-                    decimal_cleanup(items[self.options.fields[Field.QUANTITY]])
-                )
-                premium = self._consume_assignment_premium(
-                    premiums, self._trade.data.symbol, sell_date, lot_qty
-                )
-
-            details = self._trade.details_from_closed_lot(
-                items, assignment_premium=premium
+            return
+        if discriminator != DataDiscriminator.CLOSED_LOT:
+            return
+        if not self._trade:
+            raise ValueError("Tried to close a lot without trades.")
+        # Option exercise/assignment: premium is reported on the stock leg (#1191).
+        if self._trade.omit_closed_lots:
+            log.debug(
+                "Skipping option ClosedLot for %s (codes %s) — exercise/assignment",
+                self._trade.data.symbol,
+                self._trade.codes,
             )
-            # Sum detail prices so the total matches the result table (#1458).
-            self.prices += details.price
-            if details.realized > 0:
-                self.gains += details.realized
-            else:
-                self.losses -= details.realized
-            self.details.append(details)
+            return
+
+        premium = Decimal(0)
+        if self._trade.is_stock_exercise_assignment:
+            sell_date = date_without_time(self._trade.data.date_str)
+            lot_qty = abs(decimal_cleanup(items[self.options.fields[Field.QUANTITY]]))
+            premium = self._consume_assignment_premium(
+                premiums, self._trade.data.symbol, sell_date, lot_qty
+            )
+
+        details = self._trade.details_from_closed_lot(items, assignment_premium=premium)
+        # Sum detail prices so the total matches the result table (#1458).
+        self.prices += details.price
+        if details.realized > 0:
+            self.gains += details.realized
+        else:
+            self.losses -= details.realized
+        self.details.append(details)
 
     def _collect_assignment_premiums(
         self, rows: List[Tuple[str, ...]]
@@ -250,7 +243,7 @@ class Report:
             pool.shares -= take
             remaining -= take
         if total:
-            log.info(
+            log.debug(
                 "Applied option premium %.2f to %s stock assignment on %s (%.0f shares)",
                 total,
                 symbol,

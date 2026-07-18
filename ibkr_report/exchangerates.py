@@ -2,7 +2,6 @@
 
 import csv
 import logging
-import re
 from codecs import iterdecode
 from datetime import timedelta
 from decimal import Decimal
@@ -20,10 +19,32 @@ from ibkr_report.definitions import (
     CurrencyDict,
     StorageType,
 )
-from ibkr_report.tools import get_date, is_number
 from ibkr_report.storage import get_storage
+from ibkr_report.tools import get_date
 
 log = logging.getLogger(__name__)
+
+# ECB marks missing observations as N/A; empty cells appear too.
+_MISSING_RATE = frozenset({"", "N/A", "n/a"})
+
+
+def _is_rate_value(val: str) -> bool:
+    """True if `val` looks like a numeric FX rate (avoids try/except per cell)."""
+    if not val or val in _MISSING_RATE:
+        return False
+    # Rates are non-negative decimals like "1.1579" or "137.37".
+    if val[0] == "-":
+        return False
+    saw_digit = False
+    saw_dot = False
+    for ch in val:
+        if ch.isdigit():
+            saw_digit = True
+        elif ch == "." and not saw_dot:
+            saw_dot = True
+        else:
+            return False
+    return saw_digit
 
 
 class ExchangeRates:
@@ -57,23 +78,26 @@ class ExchangeRates:
         {"2015-01-20": {"USD": "1.1579", ...}, ...}
         """
         rates: CurrencyDict = {}
-        currencies = []
+        currencies: list[str] = []
         for items in csv.reader(iterdecode(rates_file, "utf-8")):
+            if not items:
+                continue
             if items[0] == "Date":
                 # The first row should be "Date,USD,JPY,..."
                 currencies = items[1:]
-            if currencies and re.match(r"^\d\d\d\d-\d\d-\d\d$", items[0]):
-                # And the following rows like "2015-01-20,1.1579,137.37,..."
-                date_rates = {
-                    cur: val
-                    for cur, val in zip(currencies, items[1:])
-                    if is_number(val)
-                }
-                if date_rates:
-                    rates[items[0]] = date_rates
+                continue
+            # Data rows: "2015-01-20,1.1579,137.37,..."
+            if not currencies or len(items[0]) != 10 or items[0][4] != "-":
+                continue
+            date_rates = {
+                cur: val
+                for cur, val in zip(currencies, items[1:])
+                if _is_rate_value(val)
+            }
+            if date_rates:
+                rates[items[0]] = date_rates
         log.debug("Adding currency data from %d rows.", len(rates))
-        self.rates = {**self.rates, **rates}
-        # TODO: Python3.9+ "self.rates |= rates"  # pylint: disable=fixme
+        self.rates |= rates
 
     def download_official_rates(self, url: str) -> None:
         """Downloads the official currency exchange rates from European Central Bank

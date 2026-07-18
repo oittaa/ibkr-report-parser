@@ -25,7 +25,7 @@ def result():
     try:
         report = Report(request.files.get("file"))
     except ValueError as err:
-        abort(400, description=err)
+        abort(400, description=str(err))
     json_format = request.args.get("json") is not None
     return show_results(report=report, json_format=json_format)
 

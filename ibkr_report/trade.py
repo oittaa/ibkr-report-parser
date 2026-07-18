@@ -109,7 +109,7 @@ class Trade:
             deemed_profit = self.deemed_profit(lot_sell_price, buy_date, sell_date)
             realized = min(realized, deemed_profit)
 
-        log.info(
+        log.debug(
             "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, "
             "Selling price: %.2f, Gains/Losses: %.2f",
             lot_data.symbol,

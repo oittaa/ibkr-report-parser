@@ -53,7 +53,7 @@ CurrencyDict = Dict[str, Dict[str, str]]
 
 
 class StrEnum(str, Enum):
-    """TODO: StrEnum available in Python 3.11+"""
+    """String enum compatible with Python 3.10 (stdlib StrEnum is 3.11+)."""
 
 
 @unique
@@ -69,6 +69,7 @@ class Field(StrEnum):
     DATE_TIME = "Date/Time"
     QUANTITY = "Quantity"
     TRANSACTION_PRICE = "T. Price"
+    # Present in IBKR headers; not used in P/L math (selling price comes from lots).
     PROCEEDS = "Proceeds"
     COMMISSION_AND_FEES = "Comm/Fee"
 
