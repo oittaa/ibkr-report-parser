@@ -3,6 +3,6 @@ flake8==7.3.0
 gcp-storage-emulator==2024.8.3
 moto[s3]==5.1.6
 mypy==2.3.0
-pylint==3.3.7
+pylint==4.0.6
 # setuptools>=82 removed pkg_resources; fs (via gcp-storage-emulator) still needs it
 setuptools>=70,<82
