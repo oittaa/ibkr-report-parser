@@ -98,6 +98,16 @@ class FieldValue(StrEnum):
     HEADER = "Data"
 
 
+# Optional CSV column (not required in Field — older exports may omit it).
+CODE_COLUMN = "Code"
+
+# IBKR trade codes that close an option into the underlying (no option P/L).
+EXERCISE_ASSIGNMENT_CODES = frozenset({"A", "Ex"})
+
+# Equity/index options: one contract is 100 shares of the underlying.
+OPTION_MULTIPLIER = 100
+
+
 @unique
 class StorageType(StrEnum):
     """Storage type"""
@@ -115,6 +125,14 @@ class ReportOptions:
     report_currency: str
     deemed_acquisition_cost: bool
     fields: Dict[str, int]
+
+
+@dataclass
+class AssignmentPremium:
+    """Option premium to fold into a related stock assignment/exercise trade."""
+
+    shares: Decimal
+    premium: Decimal  # total premium in report currency for `shares`
 
 
 @dataclass

@@ -2,9 +2,12 @@
 
 import logging
 from decimal import Decimal
-from typing import Tuple
+from typing import Set, Tuple
 
 from ibkr_report.definitions import (
+    CODE_COLUMN,
+    EXERCISE_ASSIGNMENT_CODES,
+    OPTION_MULTIPLIER,
     AssetCategory,
     Field,
     ReportOptions,
@@ -26,10 +29,11 @@ class Trade:
     """Trade which might be related to several ClosedLot rows."""
 
     fee: Decimal = Decimal(0)
-    closed_quantity: Decimal = Decimal(0)
     data: RowData
     options: ReportOptions
     rates: ExchangeRates
+    asset_category: str
+    codes: Set[str]
 
     def __init__(
         self, items: Tuple[str, ...], options: ReportOptions, rates: ExchangeRates
@@ -38,18 +42,44 @@ class Trade:
         self.options = options
         self.rates = rates
         self.data = self._row_data(items)
+        self.asset_category = items[self.options.fields[Field.ASSET_CATEGORY]]
+        self.codes = self._parse_codes(items)
 
         fee = decimal_cleanup(items[self.options.fields[Field.COMMISSION_AND_FEES]])
         self.fee = fee / self.data.rate
         log.debug(
-            'Trade: "%s" "%s" %.2f',
+            'Trade: "%s" "%s" %.2f codes=%s',
             self.data.date_str,
             self.data.symbol,
             self.data.quantity,
+            self.codes,
         )
 
-    def details_from_closed_lot(self, items: Tuple[str, ...]) -> TradeDetails:
-        """Calculates the realized gains or losses from the ClosedLot related to the Trade."""
+    @property
+    def omit_closed_lots(self) -> bool:
+        """True when this option trade is closed by exercise or assignment (#1191)."""
+        return self.asset_category == AssetCategory.OPTIONS and bool(
+            self.codes & EXERCISE_ASSIGNMENT_CODES
+        )
+
+    @property
+    def is_stock_exercise_assignment(self) -> bool:
+        """True when this stock trade results from option exercise or assignment."""
+        return self.asset_category == AssetCategory.STOCKS and bool(
+            self.codes & EXERCISE_ASSIGNMENT_CODES
+        )
+
+    def details_from_closed_lot(
+        self,
+        items: Tuple[str, ...],
+        assignment_premium: Decimal = Decimal(0),
+    ) -> TradeDetails:
+        """Calculates the realized gains or losses from the ClosedLot related to the Trade.
+
+        Args:
+            assignment_premium: Option premium in report currency to include in the
+                selling price when this stock lot was closed by assignment/exercise.
+        """
         lot_data = self._row_data(items)
         self._validate_lot(lot_data)
 
@@ -65,12 +95,14 @@ class Trade:
 
         # One option represents 100 shares of the underlying stock
         multiplier = (
-            100
+            OPTION_MULTIPLIER
             if items[self.options.fields[Field.ASSET_CATEGORY]] == AssetCategory.OPTIONS
             else 1
         )
         lot_sell_price = abs(lot_data.quantity) * unit_sell_price * multiplier
         lot_buy_price = abs(lot_data.quantity) * unit_buy_price * multiplier
+        # Premium from a related option is part of the stock disposal price (#1191).
+        lot_sell_price += assignment_premium
         lot_fee = lot_data.quantity * self.fee / self.data.quantity
         realized = lot_sell_price - lot_buy_price - lot_fee
         if self.options.deemed_acquisition_cost:
@@ -87,9 +119,6 @@ class Trade:
             lot_sell_price,
             realized,
         )
-        self.closed_quantity += lot_data.quantity
-        if self.closed_quantity + self.data.quantity == Decimal(0):
-            log.debug("All lots closed")
         return TradeDetails(
             symbol=lot_data.symbol,
             quantity=abs(lot_data.quantity),
@@ -98,6 +127,30 @@ class Trade:
             price=lot_sell_price,
             realized=realized,
         )
+
+    def option_premium_from_closed_lot(self, items: Tuple[str, ...]) -> Decimal:
+        """Premium (report currency) locked in an option ClosedLot row."""
+        quantity = decimal_cleanup(items[self.options.fields[Field.QUANTITY]])
+        unit_price = decimal_cleanup(
+            items[self.options.fields[Field.TRANSACTION_PRICE]]
+        )
+        # Convert with the assignment/exercise trade date rate (same day as stock leg).
+        premium_native = abs(quantity) * unit_price * OPTION_MULTIPLIER
+        return premium_native / self.data.rate
+
+    def option_shares_from_closed_lot(self, items: Tuple[str, ...]) -> Decimal:
+        """Underlying share count represented by an option ClosedLot."""
+        quantity = decimal_cleanup(items[self.options.fields[Field.QUANTITY]])
+        return abs(quantity) * OPTION_MULTIPLIER
+
+    def _parse_codes(self, items: Tuple[str, ...]) -> Set[str]:
+        code_idx = self.options.fields.get(CODE_COLUMN)
+        if code_idx is None or code_idx >= len(items):
+            return set()
+        raw = items[code_idx].strip()
+        if not raw:
+            return set()
+        return {part for part in raw.replace(" ", "").split(";") if part}
 
     def _row_data(self, items: Tuple[str, ...]) -> RowData:
         symbol = items[self.options.fields[Field.SYMBOL]]
@@ -142,3 +195,8 @@ class Trade:
         if get_date(buy_date) <= add_years(get_date(sell_date), -10):
             multiplier = Decimal(0.6)
         return multiplier * sell_price
+
+    @staticmethod
+    def underlying_symbol(option_symbol: str) -> str:
+        """IBKR option symbols start with the underlying ticker (e.g. 'ARKK 19SEP25 80 C')."""
+        return option_symbol.split()[0]

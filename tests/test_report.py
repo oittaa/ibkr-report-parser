@@ -80,6 +80,7 @@ class ReportTest(unittest.TestCase):
             "tests/test-data/data_warrants.csv",
             "tests/test-data/data_deemed_acquisition_cost.csv",
             "tests/test-data/data_single_account_2022.csv",
+            "tests/test-data/data_option_assignment.csv",
         )
         for path in fixtures:
             with self.subTest(path=path):
@@ -104,6 +105,52 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(report.details, [])
         self.assertEqual(report.gains, Decimal(0))
         self.assertEqual(report.losses, Decimal(0))
+
+    def test_option_assignment_skips_option_and_folds_premium_into_stock(self):
+        """Covered-call assignments: no option rows; premium in stock selling price.
+
+        Real IBKR 2025 activity excerpt (issue #1191): short calls assigned into
+        stock sales. Option Realized P/L is 0; premium is part of stock P/L.
+        """
+        report = Report(use_deemed_acquisition_cost=False)
+        with open("tests/test-data/data_option_assignment.csv", "rb") as file:
+            report.add_trades(file)
+
+        # Four stock assignment lots; no option detail rows.
+        self.assertEqual(len(report.details), 4)
+        symbols = {d.symbol for d in report.details}
+        self.assertEqual(symbols, {"ARKK", "NVDA", "SOFI"})
+        option_symbols = {
+            "ARKK 19SEP25 80 C",
+            "NVDA 18JUL25 150 C",
+            "NVDA 15AUG25 170 C",
+            "SOFI 19SEP25 25 C",
+        }
+        self.assertTrue(symbols.isdisjoint(option_symbols))
+
+        self.assertEqual(round(report.prices, 2), Decimal("39509.55"))
+        self.assertEqual(round(report.gains, 2), Decimal("34087.02"))
+        self.assertEqual(report.losses, Decimal("0"))
+
+        # ARKK: strike proceeds 8000 + premium 162.94576 USD → EUR on 2025-09-19
+        arkk = next(d for d in report.details if d.symbol == "ARKK")
+        self.assertEqual(arkk.quantity, Decimal("100"))
+        self.assertEqual(arkk.sell_date, "2025-09-19")
+        self.assertEqual(arkk.buy_date, "2022-10-27")
+        self.assertEqual(round(arkk.price, 2), Decimal("6955.48"))
+        self.assertEqual(round(arkk.realized, 2), Decimal("3109.39"))
+
+        detail_sum = sum((d.price for d in report.details), Decimal(0))
+        self.assertEqual(report.prices, detail_sum)
+
+    def test_option_expiry_still_reported(self):
+        """Option expirations (code Ep) remain normal closed disposals."""
+        report = Report(use_deemed_acquisition_cost=False)
+        with open("tests/test-data/data_multi_account.csv", "rb") as file:
+            report.add_trades(file)
+        option_rows = [d for d in report.details if "CLOV" in d.symbol]
+        self.assertEqual(len(option_rows), 3)
+        self.assertTrue(all(d.realized > 0 for d in option_rows))
 
 
 if __name__ == "__main__":
