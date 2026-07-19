@@ -156,7 +156,7 @@ class RowData:
 
 
 @dataclass
-class TradeDetails:
+class TradeDetails:  # pylint: disable=too-many-instance-attributes
     """Extracted and calculated data from a trade"""
 
     symbol: str

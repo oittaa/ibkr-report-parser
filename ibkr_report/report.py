@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 AssignmentPremiumMap = Dict[Tuple[str, str], List[AssignmentPremium]]
 
 
-class Report:
+class Report:  # pylint: disable=too-many-instance-attributes
     """Total selling prices, total capital gains, and total capital losses
     calculated from the CSV files.
 
@@ -213,9 +213,7 @@ class Report:
         lot_qty_signed = decimal_cleanup(items[self.options.fields[Field.QUANTITY]])
         if lot_qty_signed > 0:
             lot_date = date_without_time(items[self.options.fields[Field.DATE_TIME]])
-            return self._consume_assignment_premium(
-                premiums, symbol, lot_date, lot_qty
-            )
+            return self._consume_assignment_premium(premiums, symbol, lot_date, lot_qty)
         return Decimal(0), Decimal(0)
 
     def _collect_assignment_premiums(

@@ -86,39 +86,16 @@ class Trade:
         """
         lot_data = self._row_data(items)
         self._validate_lot(lot_data)
-
-        sell_date = date_without_time(self.data.date_str)
-        unit_sell_price = self.data.price_per_share
-        buy_date = date_without_time(lot_data.date_str)
-        unit_buy_price = lot_data.price_per_share
-
-        # Swap if closing a short position
-        if lot_data.quantity < Decimal(0):
-            sell_date, buy_date = buy_date, sell_date
-            unit_sell_price, unit_buy_price = unit_buy_price, unit_sell_price
-
-        # One option represents 100 shares of the underlying stock
-        multiplier = (
-            OPTION_MULTIPLIER
-            if items[self.options.fields[Field.ASSET_CATEGORY]] == AssetCategory.OPTIONS
-            else 1
+        buy_date, sell_date, lot_buy_price, lot_sell_price = self._lot_prices(
+            items, lot_data, sell_price_adjustment, buy_price_adjustment
         )
-        lot_sell_price = abs(lot_data.quantity) * unit_sell_price * multiplier
-        lot_buy_price = abs(lot_data.quantity) * unit_buy_price * multiplier
-        # Option premium adjustments for exercise/assignment (#1191, put multi-year).
-        lot_sell_price += sell_price_adjustment
-        lot_buy_price += buy_price_adjustment
-        if lot_buy_price < 0:
-            lot_buy_price = Decimal(0)
         lot_fee = lot_data.quantity * self.fee / self.data.quantity
-        realized = lot_sell_price - lot_buy_price - lot_fee
-        used_deemed = False
-        if self.options.deemed_acquisition_cost:
-            deemed_profit = self.deemed_profit(lot_sell_price, buy_date, sell_date)
-            # Applied only when it reduces the gain vs actual cost basis.
-            if deemed_profit < realized:
-                realized = deemed_profit
-                used_deemed = True
+        realized, used_deemed = self._realized_after_deemed(
+            lot_sell_price - lot_buy_price - lot_fee,
+            lot_sell_price,
+            buy_date,
+            sell_date,
+        )
 
         log.debug(
             "Symbol: %s, Quantity: %.2f, Buy date: %s, Buy price: %.2f, "
@@ -143,6 +120,52 @@ class Trade:
             realized=realized,
             deemed_acquisition_cost=used_deemed,
         )
+
+    def _lot_prices(
+        self,
+        items: Tuple[str, ...],
+        lot_data: RowData,
+        sell_price_adjustment: Decimal,
+        buy_price_adjustment: Decimal,
+    ) -> Tuple[str, str, Decimal, Decimal]:
+        """Return buy_date, sell_date, buy total, sell total for a ClosedLot."""
+        sell_date = date_without_time(self.data.date_str)
+        unit_sell_price = self.data.price_per_share
+        buy_date = date_without_time(lot_data.date_str)
+        unit_buy_price = lot_data.price_per_share
+
+        # Swap if closing a short position
+        if lot_data.quantity < Decimal(0):
+            sell_date, buy_date = buy_date, sell_date
+            unit_sell_price, unit_buy_price = unit_buy_price, unit_sell_price
+
+        # One option represents 100 shares of the underlying stock
+        multiplier = (
+            OPTION_MULTIPLIER
+            if items[self.options.fields[Field.ASSET_CATEGORY]] == AssetCategory.OPTIONS
+            else 1
+        )
+        quantity = abs(lot_data.quantity)
+        lot_sell_price = quantity * unit_sell_price * multiplier + sell_price_adjustment
+        lot_buy_price = quantity * unit_buy_price * multiplier + buy_price_adjustment
+        if lot_buy_price < 0:
+            lot_buy_price = Decimal(0)
+        return buy_date, sell_date, lot_buy_price, lot_sell_price
+
+    def _realized_after_deemed(
+        self,
+        realized: Decimal,
+        lot_sell_price: Decimal,
+        buy_date: str,
+        sell_date: str,
+    ) -> Tuple[Decimal, bool]:
+        """Apply deemed acquisition cost when it reduces the gain."""
+        if not self.options.deemed_acquisition_cost:
+            return realized, False
+        deemed_profit = self.deemed_profit(lot_sell_price, buy_date, sell_date)
+        if deemed_profit < realized:
+            return deemed_profit, True
+        return realized, False
 
     def option_premium_from_closed_lot(self, items: Tuple[str, ...]) -> Decimal:
         """Premium (report currency) locked in an option ClosedLot row."""

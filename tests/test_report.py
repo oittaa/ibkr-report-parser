@@ -254,7 +254,7 @@ class ReportTest(unittest.TestCase):
         assign = (
             b"Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,"
             b"Date/Time,Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code\n"
-            b'Trades,Data,Trade,Equity and Index Options,EUR,ABC 16AUG23 50 P,'
+            b"Trades,Data,Trade,Equity and Index Options,EUR,ABC 16AUG23 50 P,"
             b'"2023-08-16, 16:20:00",1,0,0,0,200,0,A;C\n'
             b"Trades,Data,ClosedLot,Equity and Index Options,EUR,ABC 16AUG23 50 P,"
             b"2023-07-01,-1,2.0,,,-200,0,ST\n"
