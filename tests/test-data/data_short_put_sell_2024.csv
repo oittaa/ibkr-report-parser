@@ -1,0 +1,3 @@
+Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code
+Trades,Data,Trade,Stocks,EUR,ABC,"2024-03-15, 10:00:00",-100,60,6000,0,-5000,1000,C
+Trades,Data,ClosedLot,Stocks,EUR,ABC,2023-08-16,100,50,,,5000,1000,ST

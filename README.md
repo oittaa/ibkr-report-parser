@@ -10,7 +10,7 @@ Interactive Brokers (IBKR) Report Parser for MyTax (vero.fi) - not affiliated wi
 
 ## Example
 
-![Example](https://user-images.githubusercontent.com/8972248/141529794-55226165-f844-405f-a251-a91b07701efa.png)
+![Example](docs/example.png)
 
 ## How to run locally
 
@@ -62,6 +62,26 @@ docker build -t ibkr-report-parser:latest .
 docker run --rm -d -p 8080:8080 --name ibkr-report-parser ibkr-report-parser
 ```
 
+## Multiple years and options
+
+You can upload **several CSV files** (or one multi-year custom statement). The app:
+
+1. Merges all trades so option premiums from earlier years can adjust stock lots sold later.
+2. Reports only disposals from the **latest calendar year** present in the data (for MyTax).
+
+This matters for **short puts that get assigned**: the premium is not taxed on the option; it reduces the acquisition cost of the shares. A later-year IBKR statement alone does **not** include that premium—you need the assignment year in the upload as well.
+
+Option exercise/assignment (IBKR codes `A` / `Ex`) is folded into the stock leg:
+
+| Position | Event | Effect on stock |
+|----------|--------|-----------------|
+| Short call | Assigned | Premium **increases** selling price |
+| Long call | Exercised | Premium **increases** acquisition cost |
+| Short put | Assigned | Premium **decreases** acquisition cost |
+| Long put | Exercised | Premium **decreases** selling price |
+
+Expired options and cash closes are still reported as option disposals.
+
 ## Python API
 
 ```python
@@ -76,6 +96,7 @@ with open(FILE_1, "rb") as file:
 with open(FILE_2, "rb") as file:
     report.add_trades(file=file)
 
+print(f"Report year: {report.report_year} ({report.file_count} file(s))")
 print(f"Total selling prices: {report.prices}")
 print(f"Total capital gains: {report.gains}")
 print(f"Total capital losses: {report.losses}")
@@ -83,7 +104,7 @@ print(f"Total capital losses: {report.losses}")
 for item in report.details:
     print(
         f"{item.symbol=}, {item.quantity=}, {item.buy_date=}, "
-        f"{item.sell_date=}, {item.price=}, {item.realized=}"
+        f"{item.buy_price=}, {item.sell_date=}, {item.price=}, {item.realized=}"
     )
 
 ```

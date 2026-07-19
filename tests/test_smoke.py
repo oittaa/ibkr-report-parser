@@ -54,6 +54,25 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(data_json["gains"], 5964.76)
         self.assertEqual(data_json["losses"], 0)
         self.assertIsInstance(data_json["details"], list)
+        self.assertEqual(data_json["report_year"], 2021)
+        self.assertEqual(data_json["file_count"], 1)
+
+    def test_post_multi_file_short_put_json(self):
+        """Multi-year put assignment: premium from 2023 applies to 2024 sale."""
+        with open("tests/test-data/data_short_put_sell_2024.csv", "rb") as f2024, open(
+            "tests/test-data/data_short_put_assign_2023.csv", "rb"
+        ) as f2023:
+            data = {"file": [f2024, f2023]}
+            response = self.app.post("/result?json", data=data)
+        self.assertEqual(response.status_code, 200)
+        data_json = json.loads(response.data)
+        self.assertEqual(data_json["report_year"], 2024)
+        self.assertEqual(data_json["file_count"], 2)
+        self.assertEqual(data_json["prices"], 6000.0)
+        self.assertEqual(data_json["gains"], 1200.0)
+        self.assertEqual(data_json["losses"], 0)
+        self.assertEqual(len(data_json["details"]), 1)
+        self.assertEqual(data_json["details"][0]["symbol"], "ABC")
 
     def test_post_multi_account_json(self):
         data = {"file": open("tests/test-data/data_multi_account.csv", "rb")}

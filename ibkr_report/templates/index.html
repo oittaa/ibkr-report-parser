@@ -44,9 +44,10 @@
         </tr>
       </tbody>
     </table>
-    <h2>2. Upload the CSV file.</h2>
+    <h2>2. Upload the CSV file(s).</h2>
+    <p>You can select multiple years (or a multi-year custom statement). The report uses disposals from the <strong>latest year</strong> in the data; earlier years still supply option premiums for stock lots closed later (e.g. puts assigned in a prior year).</p>
     <form method="post" id="form" action="{{ url_for('website.result') }}#result" enctype="multipart/form-data">
-      <label class="file-button"><input type="file" id="file" name="file" accept=".csv">Choose file</label>
+      <label class="file-button"><input type="file" id="file" name="file" accept=".csv" multiple>Choose file(s)</label>
     </form>
 {%- block result %}{% endblock %}
     <script src="{{ url_for('static', filename='js/main.js') }}?{{ sri['main.js']|urlencode }}" integrity="{{ sri['main.js'] }}"></script>

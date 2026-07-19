@@ -72,13 +72,17 @@ class Trade:
     def details_from_closed_lot(
         self,
         items: Tuple[str, ...],
-        assignment_premium: Decimal = Decimal(0),
+        sell_price_adjustment: Decimal = Decimal(0),
+        buy_price_adjustment: Decimal = Decimal(0),
     ) -> TradeDetails:
         """Calculates the realized gains or losses from the ClosedLot related to the Trade.
 
         Args:
-            assignment_premium: Option premium in report currency to include in the
-                selling price when this stock lot was closed by assignment/exercise.
+            sell_price_adjustment: Amount in report currency added to the selling
+                price (e.g. short-call premium received on assignment).
+            buy_price_adjustment: Amount in report currency added to the acquisition
+                cost (positive for long-call premium paid; negative for short-put
+                premium received on assignment).
         """
         lot_data = self._row_data(items)
         self._validate_lot(lot_data)
@@ -101,31 +105,43 @@ class Trade:
         )
         lot_sell_price = abs(lot_data.quantity) * unit_sell_price * multiplier
         lot_buy_price = abs(lot_data.quantity) * unit_buy_price * multiplier
-        # Premium from a related option is part of the stock disposal price (#1191).
-        lot_sell_price += assignment_premium
+        # Option premium adjustments for exercise/assignment (#1191, put multi-year).
+        lot_sell_price += sell_price_adjustment
+        lot_buy_price += buy_price_adjustment
+        if lot_buy_price < 0:
+            lot_buy_price = Decimal(0)
         lot_fee = lot_data.quantity * self.fee / self.data.quantity
         realized = lot_sell_price - lot_buy_price - lot_fee
+        used_deemed = False
         if self.options.deemed_acquisition_cost:
             deemed_profit = self.deemed_profit(lot_sell_price, buy_date, sell_date)
-            realized = min(realized, deemed_profit)
+            # Applied only when it reduces the gain vs actual cost basis.
+            if deemed_profit < realized:
+                realized = deemed_profit
+                used_deemed = True
 
         log.debug(
-            "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, "
-            "Selling price: %.2f, Gains/Losses: %.2f",
+            "Symbol: %s, Quantity: %.2f, Buy date: %s, Buy price: %.2f, "
+            "Sell date: %s, Selling price: %.2f, Gains/Losses: %.2f, "
+            "deemed=%s",
             lot_data.symbol,
             abs(lot_data.quantity),
             buy_date,
+            lot_buy_price,
             sell_date,
             lot_sell_price,
             realized,
+            used_deemed,
         )
         return TradeDetails(
             symbol=lot_data.symbol,
             quantity=abs(lot_data.quantity),
             buy_date=buy_date,
+            buy_price=lot_buy_price,
             sell_date=sell_date,
             price=lot_sell_price,
             realized=realized,
+            deemed_acquisition_cost=used_deemed,
         )
 
     def option_premium_from_closed_lot(self, items: Tuple[str, ...]) -> Decimal:
@@ -142,6 +158,10 @@ class Trade:
         """Underlying share count represented by an option ClosedLot."""
         quantity = decimal_cleanup(items[self.options.fields[Field.QUANTITY]])
         return abs(quantity) * OPTION_MULTIPLIER
+
+    def option_closed_lot_quantity(self, items: Tuple[str, ...]) -> Decimal:
+        """Signed option ClosedLot quantity (negative = short lot)."""
+        return decimal_cleanup(items[self.options.fields[Field.QUANTITY]])
 
     def _parse_codes(self, items: Tuple[str, ...]) -> Set[str]:
         code_idx = self.options.fields.get(CODE_COLUMN)
@@ -200,3 +220,12 @@ class Trade:
     def underlying_symbol(option_symbol: str) -> str:
         """IBKR option symbols start with the underlying ticker (e.g. 'ARKK 19SEP25 80 C')."""
         return option_symbol.split()[0]
+
+    @staticmethod
+    def option_right(option_symbol: str) -> str:
+        """Return 'C' or 'P' from an IBKR option symbol, or '' if unknown."""
+        parts = option_symbol.split()
+        if not parts:
+            return ""
+        right = parts[-1].upper()
+        return right if right in ("C", "P") else ""
