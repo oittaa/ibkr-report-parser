@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import re
 from base64 import b64encode
 from datetime import date, datetime
 from decimal import Decimal
@@ -67,14 +66,13 @@ def add_years(d_obj: date, years: int) -> date:
         return d_obj + (date(d_obj.year + years, 3, 1) - date(d_obj.year, 3, 1))
 
 
-def date_without_time(date_str: str) -> str:
-    """Strips away hours, minutes, and seconds from a string."""
-    return re.sub(r"(\d\d\d\d-\d\d-\d\d),? ([0-9:]+)", r"\1", date_str)
+# Commas, ASCII spaces, and NBSP appear in IBKR quantity/price fields.
+_DECIMAL_TRANS = str.maketrans({" ": None, ",": None, "\xa0": None})
 
 
 def decimal_cleanup(number_str: str) -> Decimal:
     """Converts a string to a decimal while ignoring spaces and commas."""
-    return Decimal(re.sub(r"[,\s]+", "", number_str))
+    return Decimal(number_str.translate(_DECIMAL_TRANS))
 
 
 def is_number(number_str: str) -> bool:
@@ -94,11 +92,7 @@ def calculate_sri_on_file(filename: str) -> str:
     return f"sha384-{hash_base64}"
 
 
-# TODO: pylint "Module 'hashlib' has no '_Hash' member"  # pylint: disable=fixme
-#       https://github.com/PyCQA/pylint/issues/5395
-def update_hash(
-    filename: str, hash_func: hashlib._Hash  # pylint: disable=no-member
-) -> None:
+def update_hash(filename: str, hash_func: hashlib._Hash) -> None:
     """Compute message digest from a file."""
     byte_array = bytearray(128 * 1024)
     memory_view = memoryview(byte_array)

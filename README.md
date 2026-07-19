@@ -67,7 +67,7 @@ docker run --rm -d -p 8080:8080 --name ibkr-report-parser ibkr-report-parser
 You can upload **several CSV files** (or one multi-year custom statement). The app:
 
 1. Merges all trades so option premiums from earlier years can adjust stock lots sold later.
-2. Reports only disposals from the **latest calendar year** present in the data (for MyTax).
+2. Reports only disposals from the **latest calendar year** present in the data (for MyTax). The year of each row is the later of acquisition and disposal dates (for shorts that is the cover year).
 
 This matters for **short puts that get assigned**: the premium is not taxed on the option; it reduces the acquisition cost of the shares. A later-year IBKR statement alone does **not** include that premium—you need the assignment year in the upload as well.
 
@@ -75,12 +75,26 @@ Option exercise/assignment (IBKR codes `A` / `Ex`) is folded into the stock leg:
 
 | Position | Event | Effect on stock |
 |----------|--------|-----------------|
-| Short call | Assigned | Premium **increases** selling price |
-| Long call | Exercised | Premium **increases** acquisition cost |
-| Short put | Assigned | Premium **decreases** acquisition cost |
-| Long put | Exercised | Premium **decreases** selling price |
+| Short call | Assigned | Premium **increases** disposal price (*luovutushinta*) |
+| Long call | Exercised | Premium **increases** acquisition cost (*hankintahinta*) |
+| Short put | Assigned | Premium **decreases** acquisition cost (*hankintahinta*) |
+| Long put | Exercised | Premium **decreases** disposal price (*luovutushinta*) |
 
 Expired options and cash closes are still reported as option disposals.
+
+## MyTax field names (form 9A)
+
+UI labels and the Python API follow [Verohallinto form 9A][form 9a] terminology (English / Finnish):
+
+| Report / API | Form 9A (EN sense) | Finnish |
+|--------------|--------------------|---------|
+| `acquired_on` | Acquisition date | Hankintapäivä |
+| `acquisition_cost` | Acquisition cost / price | Hankintahinta |
+| `disposed_on` | Disposal date | Luovutuspäivä |
+| `proceeds` | Disposal price | Luovutushinta |
+| `realized` | Gain or loss | Luovutusvoitto / -tappio |
+| `used_deemed_acquisition_cost` | Deemed acquisition cost used | Hankintameno-olettama |
+| Totals: `proceeds` / `gains` / `losses` | Total disposal prices / gains / losses | Luovutushinnat / -voitot / -tappiot yhteensä |
 
 ## Python API
 
@@ -97,14 +111,18 @@ with open(FILE_2, "rb") as file:
     report.add_trades(file=file)
 
 print(f"Report year: {report.report_year} ({report.file_count} file(s))")
-print(f"Total selling prices: {report.prices}")
-print(f"Total capital gains: {report.gains}")
-print(f"Total capital losses: {report.losses}")
+# Totals → form 9A: Luovutushinnat / Luovutusvoitot / Luovutustappiot yhteensä
+print(f"Total disposal prices (luovutushinnat): {report.proceeds}")
+print(f"Total capital gains (luovutusvoitot): {report.gains}")
+print(f"Total capital losses (luovutustappiot): {report.losses}")
 
-for item in report.details:
+for item in report.disposals:
+    # Hankintapäivä / hankintahinta / luovutuspäivä / luovutushinta / voitto tai tappio
     print(
-        f"{item.symbol=}, {item.quantity=}, {item.buy_date=}, "
-        f"{item.buy_price=}, {item.sell_date=}, {item.price=}, {item.realized=}"
+        f"{item.symbol=}, {item.quantity=}, "
+        f"hankintapäivä={item.acquired_on}, hankintahinta={item.acquisition_cost}, "
+        f"luovutuspäivä={item.disposed_on}, luovutushinta={item.proceeds}, "
+        f"realized={item.realized}"
     )
 
 ```
@@ -118,3 +136,4 @@ print(rates.get_rate("GBP", "SEK", "2015-12-31"))
 ```
 
 [selling shares]: https://www.vero.fi/en/individuals/property/investments/selling-shares/
+[form 9a]: https://www.vero.fi/tietoa-verohallinnosta/yhteystiedot-ja-asiointi/lomakkeet/tayttoohjeet/9a-arvopapereiden-luovutusvoitot-ja--tappiot-t%C3%A4ytt%C3%B6ohje/

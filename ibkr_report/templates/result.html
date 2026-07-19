@@ -14,39 +14,39 @@
         </tr>
       </thead>
       <tbody>
-        <tr><td>Total selling prices / Luovutushinnat yhteensä</td><td>{{ "%.2f"|format(prices|round(2)) }}</td></tr>
+        <tr><td>Total selling prices / Luovutushinnat yhteensä</td><td>{{ "%.2f"|format(proceeds|round(2)) }}</td></tr>
         <tr><td>Total capital gains / Luovutusvoitot yhteensä</td><td>{{ "%.2f"|format(gains|round(2)) }}</td></tr>
         <tr><td>Total capital losses / Luovutustappiot yhteensä</td><td>{{ "%.2f"|format(losses|round(2)) }}</td></tr>
       </tbody>
     </table>
-    <h3>Details</h3>
+    <h3>Details / Tiedot</h3>
     <table class="styled-table">
       <thead>
         <tr>
-          <th>Symbol</th>
-          <th>Quantity</th>
-          <th>Buy Date</th>
-          <th>Buying Price</th>
+          <th>Symbol / Arvopaperi</th>
+          <th>Quantity / Määrä</th>
+          <th title="Form 9A: Hankintapäivä">Acquisition date / Hankintapäivä</th>
+          <th title="Form 9A: Hankintahinta (total acquisition cost in report currency)">Acquisition cost / Hankintahinta</th>
 {%- if use_deemed_acquisition_cost %}
-          <th title="Deemed acquisition cost (hankintameno-olettama) applied">Deemed</th>
+          <th title="Deemed acquisition cost applied / Hankintameno-olettamaa käytetty">Deemed / Olettama</th>
 {%- endif %}
-          <th>Sell Date</th>
-          <th>Selling Price</th>
-          <th>Gains / Losses</th>
+          <th title="Form 9A: Luovutuspäivä">Disposal date / Luovutuspäivä</th>
+          <th title="Form 9A: Luovutushinta (total selling price in report currency)">Disposal price / Luovutushinta</th>
+          <th title="Form 9A: Luovutusvoitto / luovutustappio">Gain or loss / Voitto tai tappio</th>
         </tr>
       </thead>
       <tbody>
-{%- for item in details %}
+{%- for item in disposals %}
         <tr>
             <td>{{item.symbol}}</td>
             <td>{{item.quantity}}</td>
-            <td>{{item.buy_date}}</td>
-            <td>{{"%.2f"|format(item.buy_price|round(2))}}</td>
+            <td>{{item.acquired_on.isoformat()}}</td>
+            <td>{{"%.2f"|format(item.acquisition_cost|round(2))}}</td>
 {%- if use_deemed_acquisition_cost %}
-            <td style="text-align:center">{% if item.deemed_acquisition_cost %}✓{% endif %}</td>
+            <td style="text-align:center">{% if item.used_deemed_acquisition_cost %}✓{% endif %}</td>
 {%- endif %}
-            <td>{{item.sell_date}}</td>
-            <td>{{"%.2f"|format(item.price|round(2))}}</td>
+            <td>{{item.disposed_on.isoformat()}}</td>
+            <td>{{"%.2f"|format(item.proceeds|round(2))}}</td>
             <td>{{"%.2f"|format(item.realized|round(2))}}</td>
         </tr>
 {%- endfor %}

@@ -1,10 +1,13 @@
 """Constants and other definitions"""
 
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from enum import Enum, unique
-from typing import Dict
+from typing import Dict, Optional, Sequence
 
 
 def _strtobool(val: str) -> bool:
@@ -119,24 +122,23 @@ class StorageType(StrEnum):
     LOCAL = "local"
 
 
-@dataclass
-class ReportOptions:
-    """Report options"""
+@dataclass(frozen=True, slots=True)
+class ReportConfig:
+    """Immutable report configuration (no parse-state)."""
 
     report_currency: str
-    deemed_acquisition_cost: bool
-    fields: Dict[str, int]
+    use_deemed_acquisition_cost: bool
 
 
-@dataclass
-class AssignmentPremium:
-    """Option premium to fold into a related stock assignment/exercise trade.
+@dataclass(frozen=True, slots=True)
+class PremiumLot:
+    """Option premium pool for a related stock assignment/exercise.
 
     Amounts are in report currency for ``shares`` of the underlying.
 
-    ``sell_delta`` is added to the stock selling price (short call assignment,
-    long put exercise). ``basis_delta`` is added to the stock acquisition cost
-    (long call exercise increases cost; short put assignment decreases it).
+    ``sell_delta`` is added to stock proceeds (short call assignment, long put
+    exercise). ``basis_delta`` is added to stock acquisition cost (long call
+    exercise increases cost; short put assignment decreases it).
     """
 
     shares: Decimal
@@ -144,27 +146,75 @@ class AssignmentPremium:
     basis_delta: Decimal = Decimal(0)
 
 
-@dataclass
-class RowData:
-    """Extracted data from a CSV file"""
+@dataclass(frozen=True, slots=True)
+class TradeOpen:
+    """A Trade row from an IBKR activity statement (may pair with ClosedLots)."""
 
     symbol: str
-    date_str: str
-    rate: Decimal
-    price_per_share: Decimal
+    trade_date: date
+    asset_category: str
+    currency: str
     quantity: Decimal
+    unit_price_native: Decimal
+    fee_native: Decimal
+    codes: frozenset[str]
 
 
-@dataclass
-class TradeDetails:  # pylint: disable=too-many-instance-attributes
-    """Extracted and calculated data from a trade"""
+@dataclass(frozen=True, slots=True)
+class ClosedLot:
+    """A ClosedLot row from an IBKR activity statement."""
+
+    symbol: str
+    lot_date: date
+    asset_category: str
+    currency: str
+    quantity: Decimal  # signed: short lots are negative
+    unit_price_native: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class Disposal:
+    """One taxable disposal (ClosedLot matched to a Trade), in report currency."""
 
     symbol: str
     quantity: Decimal
-    buy_date: str
-    buy_price: Decimal  # acquisition cost in report currency (incl. option adjustments)
-    sell_date: str
-    price: Decimal  # selling price in report currency
+    acquired_on: date
+    acquisition_cost: Decimal  # total, report currency (incl. option adjustments)
+    disposed_on: date
+    proceeds: Decimal  # total selling price, report currency
     realized: Decimal
-    # True when deemed acquisition cost lowered the taxable gain for this row.
-    deemed_acquisition_cost: bool = False
+    used_deemed_acquisition_cost: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class Totals:
+    """Aggregated MyTax totals for a report year."""
+
+    proceeds: Decimal
+    gains: Decimal
+    losses: Decimal
+
+    @staticmethod
+    def from_disposals(rows: Sequence[Disposal]) -> Totals:
+        """Sum proceeds and split realized into gains vs losses."""
+        proceeds = Decimal(0)
+        gains = Decimal(0)
+        losses = Decimal(0)
+        for row in rows:
+            proceeds += row.proceeds
+            if row.realized > 0:
+                gains += row.realized
+            else:
+                losses -= row.realized
+        return Totals(proceeds=proceeds, gains=gains, losses=losses)
+
+
+@dataclass(frozen=True, slots=True)
+class ReportResult:
+    """Immutable outcome of processing one or more CSV files."""
+
+    year: Optional[int]
+    file_count: int
+    totals: Totals
+    disposals: tuple[Disposal, ...]
+    config: ReportConfig

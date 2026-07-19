@@ -1,0 +1,5 @@
+Trades,Header,DataDiscriminator,Asset Category,Currency,Account,Symbol,Date/Time,Exchange,Quantity,T. Price,Proceeds,Comm/Fee,Basis,Realized P/L,Code
+Trades,Data,Order,Stocks,USD,U12345,AMC,"2024-07-16, 16:20:00",-,100,40,-4000,0,7352.950595,3490.900086,A;C
+Trades,Data,Trade,Stocks,USD,U12345,AMC,"2024-07-16, 16:20:00",--,100,40,-4000,0,7352.950595,3490.900086,A;C
+Trades,Data,ClosedLot,Stocks,USD,,AMC,2023-06-03,,-100,73.52950595,,,-7352.950595,3490.900086,ST
+Trades,SubTotal,,Stocks,USD,AMC,,,,0,,-4000,0,7352.950595,3490.900086,

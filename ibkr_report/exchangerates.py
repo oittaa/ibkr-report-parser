@@ -1,12 +1,14 @@
 """Euro foreign exchange rates from European Central Bank"""
 
+from __future__ import annotations
+
 import csv
 import logging
 from codecs import iterdecode
 from datetime import date, timedelta
 from decimal import Decimal
 from io import BytesIO
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple, Union
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
@@ -31,6 +33,7 @@ _MISSING_RATE = frozenset({"", "N/A", "n/a"})
 # calendar day the table was loaded so tests (and multi-request web workers)
 # do not re-parse the large ECB zip after tools.Cache.clear() or with storage
 # disabled. Invalidates automatically when the local date changes.
+# Values are treated as immutable; instances share the mapping until they mutate.
 _ParsedRatesKey = Tuple[str, str]  # (url, YYYY-MM-DD)
 _parsed_rates_cache: Dict[_ParsedRatesKey, CurrencyDict] = {}
 
@@ -50,10 +53,8 @@ def _copy_rates(rates: CurrencyDict) -> CurrencyDict:
 
 
 def _cache_get_parsed_rates(url: str) -> Optional[CurrencyDict]:
-    cached = _parsed_rates_cache.get((url, _today_key()))
-    if cached is None:
-        return None
-    return _copy_rates(cached)
+    """Return a shared (immutable) rate table, or None."""
+    return _parsed_rates_cache.get((url, _today_key()))
 
 
 def _cache_set_parsed_rates(url: str, rates: CurrencyDict) -> None:
@@ -62,6 +63,7 @@ def _cache_set_parsed_rates(url: str, rates: CurrencyDict) -> None:
     stale = [key for key in _parsed_rates_cache if key[1] != today]
     for key in stale:
         del _parsed_rates_cache[key]
+    # Store a copy so later mutation of the caller's dict cannot corrupt the cache.
     _parsed_rates_cache[(url, today)] = _copy_rates(rates)
 
 
@@ -88,6 +90,7 @@ class ExchangeRates:
     """Euro foreign exchange rates"""
 
     rates: CurrencyDict
+    _rates_owned: bool
 
     def __init__(
         self,
@@ -103,20 +106,32 @@ class ExchangeRates:
         url = url or EXCHANGE_RATES_URL
         storage = get_storage(storage_type=storage_type)
         self.storage = storage(**kwargs)
-        self.rates = self.storage.load()
-        if self.rates:
-            _cache_set_parsed_rates(url, self.rates)
-            return
 
+        # Prefer the process-level table (shared, no deep-copy) over storage/tools.Cache
+        # which would re-copy the large ECB map on every Report().
         cached = _cache_get_parsed_rates(url)
         if cached is not None:
             log.debug("Using in-process exchange rate cache for %s", url)
             self.rates = cached
+            self._rates_owned = False
             return
 
+        self.rates = self.storage.load()
+        if self.rates:
+            self._rates_owned = True
+            _cache_set_parsed_rates(url, self.rates)
+            return
+
+        self.rates = {}
+        self._rates_owned = True
         self.download_official_rates(url)
         self.storage.save(content=self.rates)
         _cache_set_parsed_rates(url, self.rates)
+
+    def _ensure_owned_rates(self) -> None:
+        if not self._rates_owned:
+            self.rates = _copy_rates(self.rates)
+            self._rates_owned = True
 
     def add_to_exchange_rates(self, rates_file: Iterable[bytes]) -> None:
         """Builds the dictionary for the exchange rates from the downloaded CSV file
@@ -124,6 +139,7 @@ class ExchangeRates:
 
         {"2015-01-20": {"USD": "1.1579", ...}, ...}
         """
+        self._ensure_owned_rates()
         rates: CurrencyDict = {}
         currencies: list[str] = []
         for items in csv.reader(iterdecode(rates_file, "utf-8")):
@@ -181,12 +197,20 @@ class ExchangeRates:
             self.add_to_exchange_rates(bytes_io)
         log.debug("Parsed exchange rates from the retrieved data.")
 
-    def get_rate(self, currency_from: str, currency_to: str, date_str: str) -> Decimal:
-        """Exchange rate between two currencies on a given day."""
+    def get_rate(
+        self,
+        currency_from: str,
+        currency_to: str,
+        on: Union[date, str],
+    ) -> Decimal:
+        """Exchange rate between two currencies on a given day.
+
+        ``on`` may be a ``date`` or an IBKR/ISO date string (parsed once).
+        """
         if currency_from == currency_to:
             return Decimal(1)
 
-        original_date = search_date = get_date(date_str)
+        original_date = search_date = on if isinstance(on, date) else get_date(on)
         while original_date - search_date <= timedelta(MAX_BACKTRACK_DAYS):
             date_rates = self.rates.get(search_date.strftime(DATE_FORMAT), {})
             from_rate = "1" if currency_from == "EUR" else date_rates.get(currency_from)

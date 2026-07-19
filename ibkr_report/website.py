@@ -1,10 +1,12 @@
 """Flask Blueprints for the website."""
 
+from decimal import Decimal
 from typing import Dict, List, Union
+
 from flask import Blueprint, Response, abort, make_response, render_template, request
 from werkzeug.datastructures import FileStorage
 
-from ibkr_report.definitions import TITLE
+from ibkr_report.definitions import TITLE, Disposal
 from ibkr_report.report import Report
 from ibkr_report.tools import set_logging, _sri
 
@@ -25,6 +27,8 @@ def result():
     set_logging()
     try:
         report = _report_from_upload()
+        # Force pipeline here so parse/match ValueErrors become HTTP 400.
+        report.result()
     except ValueError as err:
         abort(400, description=str(err))
     json_format = request.args.get("json") is not None
@@ -47,30 +51,48 @@ def _report_from_upload() -> Report:
     return report
 
 
+def _json_number(value: Decimal) -> float:
+    return float(round(value, 2))
+
+
+def _disposal_json(item: Disposal) -> Dict[str, object]:
+    return {
+        "symbol": item.symbol,
+        "quantity": _json_number(item.quantity),
+        "acquired_on": item.acquired_on.isoformat(),
+        "acquisition_cost": _json_number(item.acquisition_cost),
+        "disposed_on": item.disposed_on.isoformat(),
+        "proceeds": _json_number(item.proceeds),
+        "realized": _json_number(item.realized),
+        "used_deemed_acquisition_cost": item.used_deemed_acquisition_cost,
+    }
+
+
 def show_results(
     report: Report, json_format: bool = False
 ) -> Union[str, Dict[str, object]]:
     """Show the results either in JSON or HTML format."""
-    use_deemed = report.options.deemed_acquisition_cost
+    outcome = report.result()
+    use_deemed = outcome.config.use_deemed_acquisition_cost
     if json_format:
         return {
-            "prices": float(round(report.prices, 2)),
-            "gains": float(round(report.gains, 2)),
-            "losses": float(round(report.losses, 2)),
-            "details": report.details,
-            "report_year": report.report_year,
-            "file_count": report.file_count,
+            "proceeds": _json_number(outcome.totals.proceeds),
+            "gains": _json_number(outcome.totals.gains),
+            "losses": _json_number(outcome.totals.losses),
+            "disposals": [_disposal_json(d) for d in outcome.disposals],
+            "report_year": outcome.year,
+            "file_count": outcome.file_count,
             "use_deemed_acquisition_cost": use_deemed,
         }
     return render_template(
         "result.html",
         title=TITLE,
-        prices=report.prices,
-        gains=report.gains,
-        losses=report.losses,
-        details=report.details,
-        report_year=report.report_year,
-        file_count=report.file_count,
+        proceeds=outcome.totals.proceeds,
+        gains=outcome.totals.gains,
+        losses=outcome.totals.losses,
+        disposals=outcome.disposals,
+        report_year=outcome.year,
+        file_count=outcome.file_count,
         use_deemed_acquisition_cost=use_deemed,
         sri=_sri(),
     )

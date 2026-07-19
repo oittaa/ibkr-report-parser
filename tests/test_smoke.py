@@ -50,10 +50,10 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers.get("Content-Type"), "application/json")
         data_json = json.loads(response.data)
-        self.assertEqual(data_json["prices"], 8518.52)
+        self.assertEqual(data_json["proceeds"], 8518.52)
         self.assertEqual(data_json["gains"], 5964.76)
         self.assertEqual(data_json["losses"], 0)
-        self.assertIsInstance(data_json["details"], list)
+        self.assertIsInstance(data_json["disposals"], list)
         self.assertEqual(data_json["report_year"], 2021)
         self.assertEqual(data_json["file_count"], 1)
 
@@ -68,18 +68,18 @@ class SmokeTests(unittest.TestCase):
         data_json = json.loads(response.data)
         self.assertEqual(data_json["report_year"], 2024)
         self.assertEqual(data_json["file_count"], 2)
-        self.assertEqual(data_json["prices"], 6000.0)
+        self.assertEqual(data_json["proceeds"], 6000.0)
         self.assertEqual(data_json["gains"], 1200.0)
         self.assertEqual(data_json["losses"], 0)
-        self.assertEqual(len(data_json["details"]), 1)
-        self.assertEqual(data_json["details"][0]["symbol"], "ABC")
+        self.assertEqual(len(data_json["disposals"]), 1)
+        self.assertEqual(data_json["disposals"][0]["symbol"], "ABC")
 
     def test_post_multi_account_json(self):
         data = {"file": open("tests/test-data/data_multi_account.csv", "rb")}
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
-        self.assertEqual(data_json["prices"], 6870.76)
+        self.assertEqual(data_json["proceeds"], 6870.76)
         self.assertEqual(data_json["gains"], 1064.02)
         self.assertEqual(data_json["losses"], 445.98)
 
@@ -93,7 +93,7 @@ class SmokeTests(unittest.TestCase):
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
-        self.assertEqual(data_json["prices"], 6033.44)
+        self.assertEqual(data_json["proceeds"], 6033.44)
         self.assertEqual(data_json["gains"], 2644.18)
         self.assertEqual(data_json["losses"], 0.00)
 
@@ -103,7 +103,7 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
         # Open short without ClosedLot: no disposal row, so no selling price.
-        self.assertEqual(data_json["prices"], 0.0)
+        self.assertEqual(data_json["proceeds"], 0.0)
         self.assertEqual(data_json["gains"], 0.00)
         self.assertEqual(data_json["losses"], 0.00)
 
@@ -112,7 +112,7 @@ class SmokeTests(unittest.TestCase):
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
-        self.assertEqual(data_json["prices"], 9982.0)
+        self.assertEqual(data_json["proceeds"], 9982.0)
         self.assertEqual(data_json["gains"], 5989.2)
         self.assertEqual(data_json["losses"], 0.00)
 
@@ -126,7 +126,7 @@ class SmokeTests(unittest.TestCase):
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
-        self.assertEqual(data_json["prices"], 7195.37)
+        self.assertEqual(data_json["proceeds"], 7195.37)
         self.assertEqual(data_json["gains"], 455.67)
         self.assertEqual(data_json["losses"], 0.00)
 
@@ -135,7 +135,7 @@ class SmokeTests(unittest.TestCase):
         response = self.app.post("/result?json", data=data)
         self.assertEqual(response.status_code, 200)
         data_json = json.loads(response.data)
-        self.assertEqual(data_json["prices"], 7.2)
+        self.assertEqual(data_json["proceeds"], 7.2)
         self.assertEqual(data_json["gains"], 5.0)
         self.assertEqual(data_json["losses"], 0.00)
 
