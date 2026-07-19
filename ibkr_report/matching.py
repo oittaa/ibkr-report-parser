@@ -63,14 +63,24 @@ def match_disposals(
     return disposals
 
 
+def disposal_report_year(disposal: Disposal) -> int:
+    """Calendar year a disposal belongs to for MyTax year filtering.
+
+    For long stock the later date is the sell. For shorts the form fields still
+    use open as sell and cover as buy (so ``disposed_on`` can be earlier than
+    ``acquired_on``); the taxable close is the later of the two dates.
+    """
+    return max(disposal.acquired_on, disposal.disposed_on).year
+
+
 def filter_latest_year(
     disposals: Sequence[Disposal],
 ) -> Tuple[Optional[int], List[Disposal]]:
-    """Keep only disposals from the latest sell-date calendar year."""
+    """Keep only disposals from the latest report-year present in the data."""
     if not disposals:
         return None, []
-    year = max(d.disposed_on.year for d in disposals)
-    kept = [d for d in disposals if d.disposed_on.year == year]
+    year = max(disposal_report_year(d) for d in disposals)
+    kept = [d for d in disposals if disposal_report_year(d) == year]
     return year, kept
 
 
@@ -242,6 +252,7 @@ def _validate_lot(trade: TradeOpen, lot: ClosedLot) -> None:
 __all__ = [
     "deemed_profit",
     "disposal_from_lot",
+    "disposal_report_year",
     "filter_latest_year",
     "is_stock_exercise_assignment",
     "match_disposals",

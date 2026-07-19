@@ -275,6 +275,62 @@ class ReportTest(unittest.TestCase):
         # Sell 3000 - buy (2500 - 100 half premium) = 600
         self.assertEqual(report.disposals[0].realized, Decimal("600"))
 
+    def test_short_stock_closed_next_year_multi_file(self):
+        """Short opened 2023, covered 2024 — report year is cover year.
+
+        Same economics as data_shorting_stocks.csv, split across years. Form
+        fields still show open as sell date and cover as buy date; year filter
+        uses the later date so the close lands on the 2024 MyTax report.
+        """
+        report = Report(use_deemed_acquisition_cost=False)
+        # Newest-first (cover before open) like multi-year option tests.
+        with open("tests/test-data/data_short_cover_2024.csv", "rb") as file:
+            report.add_trades(file)
+        with open("tests/test-data/data_short_open_2023.csv", "rb") as file:
+            report.add_trades(file)
+
+        self.assertEqual(report.file_count, 2)
+        self.assertEqual(report.report_year, 2024)
+        self.assertEqual(len(report.disposals), 1)
+        row = report.disposals[0]
+        self.assertEqual(row.symbol, "AMC")
+        self.assertEqual(row.quantity, Decimal("100"))
+        # Oriented for MyTax: sell = short open, buy = cover.
+        self.assertEqual(row.disposed_on.isoformat(), "2023-06-03")
+        self.assertEqual(row.acquired_on.isoformat(), "2024-07-16")
+        # Shorted ~73.53, covered at 40 → gain (USD→EUR via ECB rates).
+        self.assertGreater(row.realized, 0)
+        self.assertEqual(report.proceeds, row.proceeds)
+        self.assertEqual(report.gains, row.realized)
+        self.assertEqual(report.losses, Decimal(0))
+
+    def test_short_cover_year_alone_produces_disposal(self):
+        """Cover + ClosedLot in the later statement is enough (open Trade optional)."""
+        report = Report(use_deemed_acquisition_cost=False)
+        with open("tests/test-data/data_short_cover_2024.csv", "rb") as file:
+            report.add_trades(file)
+        self.assertEqual(report.report_year, 2024)
+        self.assertEqual(len(report.disposals), 1)
+        self.assertEqual(report.disposals[0].disposed_on.isoformat(), "2023-06-03")
+        self.assertEqual(report.disposals[0].acquired_on.isoformat(), "2024-07-16")
+
+    def test_short_closed_next_year_kept_when_other_2024_disposals_exist(self):
+        """Cross-year short is not dropped when latest year is the cover year."""
+        report = Report(use_deemed_acquisition_cost=False)
+        with open("tests/test-data/data_short_cover_2024.csv", "rb") as file:
+            report.add_trades(file)
+        with open("tests/test-data/data_short_open_2023.csv", "rb") as file:
+            report.add_trades(file)
+        # Unrelated 2024 long sale would also force year 2024; short must stay.
+        with open("tests/test-data/data_short_put_sell_2024.csv", "rb") as file:
+            report.add_trades(file)
+
+        self.assertEqual(report.report_year, 2024)
+        symbols = {d.symbol for d in report.disposals}
+        self.assertIn("AMC", symbols)
+        self.assertIn("ABC", symbols)
+        self.assertEqual(len(report.disposals), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

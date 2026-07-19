@@ -61,9 +61,10 @@ class Report:
     making a profit.
 
     Multiple CSV files may be added (e.g. several tax years). After processing,
-    only disposals from the latest calendar year present in the data are kept,
-    so earlier-year option premiums can still adjust a later stock sale while
-    the MyTax totals reflect a single year.
+    only disposals from the latest calendar year present in the data are kept
+    (by close date: sell for longs, cover for shorts), so earlier-year option
+    premiums and short opens can still adjust a later-year close while the
+    MyTax totals reflect a single year.
 
     Args:
         file: The input file in CSV format.
