@@ -8,3 +8,7 @@ omit = ["ibkr_report/__main__.py"]
 
 [tool.mypy]
 files = ["*.py", "ibkr_report/*.py", "tests/*.py"]
+
+# Domain events/disposals are flat DTOs; default 7 is too tight for tax rows.
+[tool.pylint.design]
+max-attributes = 8

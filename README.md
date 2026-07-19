@@ -97,14 +97,15 @@ with open(FILE_2, "rb") as file:
     report.add_trades(file=file)
 
 print(f"Report year: {report.report_year} ({report.file_count} file(s))")
-print(f"Total selling prices: {report.prices}")
+print(f"Total selling prices: {report.proceeds}")
 print(f"Total capital gains: {report.gains}")
 print(f"Total capital losses: {report.losses}")
 
-for item in report.details:
+for item in report.disposals:
     print(
-        f"{item.symbol=}, {item.quantity=}, {item.buy_date=}, "
-        f"{item.buy_price=}, {item.sell_date=}, {item.price=}, {item.realized=}"
+        f"{item.symbol=}, {item.quantity=}, {item.acquired_on=}, "
+        f"{item.acquisition_cost=}, {item.disposed_on=}, "
+        f"{item.proceeds=}, {item.realized=}"
     )
 
 ```

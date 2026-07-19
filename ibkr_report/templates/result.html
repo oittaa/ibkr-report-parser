@@ -14,7 +14,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr><td>Total selling prices / Luovutushinnat yhteensä</td><td>{{ "%.2f"|format(prices|round(2)) }}</td></tr>
+        <tr><td>Total selling prices / Luovutushinnat yhteensä</td><td>{{ "%.2f"|format(proceeds|round(2)) }}</td></tr>
         <tr><td>Total capital gains / Luovutusvoitot yhteensä</td><td>{{ "%.2f"|format(gains|round(2)) }}</td></tr>
         <tr><td>Total capital losses / Luovutustappiot yhteensä</td><td>{{ "%.2f"|format(losses|round(2)) }}</td></tr>
       </tbody>
@@ -36,17 +36,17 @@
         </tr>
       </thead>
       <tbody>
-{%- for item in details %}
+{%- for item in disposals %}
         <tr>
             <td>{{item.symbol}}</td>
             <td>{{item.quantity}}</td>
-            <td>{{item.buy_date}}</td>
-            <td>{{"%.2f"|format(item.buy_price|round(2))}}</td>
+            <td>{{item.acquired_on.isoformat()}}</td>
+            <td>{{"%.2f"|format(item.acquisition_cost|round(2))}}</td>
 {%- if use_deemed_acquisition_cost %}
-            <td style="text-align:center">{% if item.deemed_acquisition_cost %}✓{% endif %}</td>
+            <td style="text-align:center">{% if item.used_deemed_acquisition_cost %}✓{% endif %}</td>
 {%- endif %}
-            <td>{{item.sell_date}}</td>
-            <td>{{"%.2f"|format(item.price|round(2))}}</td>
+            <td>{{item.disposed_on.isoformat()}}</td>
+            <td>{{"%.2f"|format(item.proceeds|round(2))}}</td>
             <td>{{"%.2f"|format(item.realized|round(2))}}</td>
         </tr>
 {%- endfor %}
