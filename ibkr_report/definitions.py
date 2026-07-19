@@ -130,10 +130,18 @@ class ReportOptions:
 
 @dataclass
 class AssignmentPremium:
-    """Option premium to fold into a related stock assignment/exercise trade."""
+    """Option premium to fold into a related stock assignment/exercise trade.
+
+    Amounts are in report currency for ``shares`` of the underlying.
+
+    ``sell_delta`` is added to the stock selling price (short call assignment,
+    long put exercise). ``basis_delta`` is added to the stock acquisition cost
+    (long call exercise increases cost; short put assignment decreases it).
+    """
 
     shares: Decimal
-    premium: Decimal  # total premium in report currency for `shares`
+    sell_delta: Decimal = Decimal(0)
+    basis_delta: Decimal = Decimal(0)
 
 
 @dataclass
@@ -148,12 +156,15 @@ class RowData:
 
 
 @dataclass
-class TradeDetails:
+class TradeDetails:  # pylint: disable=too-many-instance-attributes
     """Extracted and calculated data from a trade"""
 
     symbol: str
     quantity: Decimal
     buy_date: str
+    buy_price: Decimal  # acquisition cost in report currency (incl. option adjustments)
     sell_date: str
-    price: Decimal
+    price: Decimal  # selling price in report currency
     realized: Decimal
+    # True when deemed acquisition cost lowered the taxable gain for this row.
+    deemed_acquisition_cost: bool = False

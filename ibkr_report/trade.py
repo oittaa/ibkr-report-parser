@@ -72,17 +72,63 @@ class Trade:
     def details_from_closed_lot(
         self,
         items: Tuple[str, ...],
-        assignment_premium: Decimal = Decimal(0),
+        sell_price_adjustment: Decimal = Decimal(0),
+        buy_price_adjustment: Decimal = Decimal(0),
     ) -> TradeDetails:
         """Calculates the realized gains or losses from the ClosedLot related to the Trade.
 
         Args:
-            assignment_premium: Option premium in report currency to include in the
-                selling price when this stock lot was closed by assignment/exercise.
+            sell_price_adjustment: Amount in report currency added to the selling
+                price (e.g. short-call premium received on assignment).
+            buy_price_adjustment: Amount in report currency added to the acquisition
+                cost (positive for long-call premium paid; negative for short-put
+                premium received on assignment).
         """
         lot_data = self._row_data(items)
         self._validate_lot(lot_data)
+        buy_date, sell_date, lot_buy_price, lot_sell_price = self._lot_prices(
+            items, lot_data, sell_price_adjustment, buy_price_adjustment
+        )
+        lot_fee = lot_data.quantity * self.fee / self.data.quantity
+        realized, used_deemed = self._realized_after_deemed(
+            lot_sell_price - lot_buy_price - lot_fee,
+            lot_sell_price,
+            buy_date,
+            sell_date,
+        )
 
+        log.debug(
+            "Symbol: %s, Quantity: %.2f, Buy date: %s, Buy price: %.2f, "
+            "Sell date: %s, Selling price: %.2f, Gains/Losses: %.2f, "
+            "deemed=%s",
+            lot_data.symbol,
+            abs(lot_data.quantity),
+            buy_date,
+            lot_buy_price,
+            sell_date,
+            lot_sell_price,
+            realized,
+            used_deemed,
+        )
+        return TradeDetails(
+            symbol=lot_data.symbol,
+            quantity=abs(lot_data.quantity),
+            buy_date=buy_date,
+            buy_price=lot_buy_price,
+            sell_date=sell_date,
+            price=lot_sell_price,
+            realized=realized,
+            deemed_acquisition_cost=used_deemed,
+        )
+
+    def _lot_prices(
+        self,
+        items: Tuple[str, ...],
+        lot_data: RowData,
+        sell_price_adjustment: Decimal,
+        buy_price_adjustment: Decimal,
+    ) -> Tuple[str, str, Decimal, Decimal]:
+        """Return buy_date, sell_date, buy total, sell total for a ClosedLot."""
         sell_date = date_without_time(self.data.date_str)
         unit_sell_price = self.data.price_per_share
         buy_date = date_without_time(lot_data.date_str)
@@ -99,34 +145,27 @@ class Trade:
             if items[self.options.fields[Field.ASSET_CATEGORY]] == AssetCategory.OPTIONS
             else 1
         )
-        lot_sell_price = abs(lot_data.quantity) * unit_sell_price * multiplier
-        lot_buy_price = abs(lot_data.quantity) * unit_buy_price * multiplier
-        # Premium from a related option is part of the stock disposal price (#1191).
-        lot_sell_price += assignment_premium
-        lot_fee = lot_data.quantity * self.fee / self.data.quantity
-        realized = lot_sell_price - lot_buy_price - lot_fee
-        if self.options.deemed_acquisition_cost:
-            deemed_profit = self.deemed_profit(lot_sell_price, buy_date, sell_date)
-            realized = min(realized, deemed_profit)
+        quantity = abs(lot_data.quantity)
+        lot_sell_price = quantity * unit_sell_price * multiplier + sell_price_adjustment
+        lot_buy_price = quantity * unit_buy_price * multiplier + buy_price_adjustment
+        if lot_buy_price < 0:
+            lot_buy_price = Decimal(0)
+        return buy_date, sell_date, lot_buy_price, lot_sell_price
 
-        log.debug(
-            "Symbol: %s, Quantity: %.2f, Buy date: %s, Sell date: %s, "
-            "Selling price: %.2f, Gains/Losses: %.2f",
-            lot_data.symbol,
-            abs(lot_data.quantity),
-            buy_date,
-            sell_date,
-            lot_sell_price,
-            realized,
-        )
-        return TradeDetails(
-            symbol=lot_data.symbol,
-            quantity=abs(lot_data.quantity),
-            buy_date=buy_date,
-            sell_date=sell_date,
-            price=lot_sell_price,
-            realized=realized,
-        )
+    def _realized_after_deemed(
+        self,
+        realized: Decimal,
+        lot_sell_price: Decimal,
+        buy_date: str,
+        sell_date: str,
+    ) -> Tuple[Decimal, bool]:
+        """Apply deemed acquisition cost when it reduces the gain."""
+        if not self.options.deemed_acquisition_cost:
+            return realized, False
+        deemed_profit = self.deemed_profit(lot_sell_price, buy_date, sell_date)
+        if deemed_profit < realized:
+            return deemed_profit, True
+        return realized, False
 
     def option_premium_from_closed_lot(self, items: Tuple[str, ...]) -> Decimal:
         """Premium (report currency) locked in an option ClosedLot row."""
@@ -142,6 +181,10 @@ class Trade:
         """Underlying share count represented by an option ClosedLot."""
         quantity = decimal_cleanup(items[self.options.fields[Field.QUANTITY]])
         return abs(quantity) * OPTION_MULTIPLIER
+
+    def option_closed_lot_quantity(self, items: Tuple[str, ...]) -> Decimal:
+        """Signed option ClosedLot quantity (negative = short lot)."""
+        return decimal_cleanup(items[self.options.fields[Field.QUANTITY]])
 
     def _parse_codes(self, items: Tuple[str, ...]) -> Set[str]:
         code_idx = self.options.fields.get(CODE_COLUMN)
@@ -200,3 +243,12 @@ class Trade:
     def underlying_symbol(option_symbol: str) -> str:
         """IBKR option symbols start with the underlying ticker (e.g. 'ARKK 19SEP25 80 C')."""
         return option_symbol.split()[0]
+
+    @staticmethod
+    def option_right(option_symbol: str) -> str:
+        """Return 'C' or 'P' from an IBKR option symbol, or '' if unknown."""
+        parts = option_symbol.split()
+        if not parts:
+            return ""
+        right = parts[-1].upper()
+        return right if right in ("C", "P") else ""
