@@ -1,38 +1,38 @@
 {% extends "index.html" %}
 {% block result -%}
-    <h2 id="result">3. Fill out the forms at <a href ="https://vero.fi/">vero.fi</a></h2>
+    <h2 id="result">{{ t('result.step3_title')|safe }}</h2>
 {%- if report_year is not none %}
-    <p><strong>Report year {{ report_year }}</strong> from {{ file_count }} uploaded file{% if file_count != 1 %}s{% endif %}.</p>
+    <p>{{ t('result.report_year', report_year=report_year, file_count=file_count, file_plural='' if file_count == 1 else 's')|safe }}</p>
 {%- endif %}
-    <h3>Profit from selling securities / Arvopaperien myyntivoitot</h3>
-    <p>From <strong>Filing method</strong> / <strong>Ilmoittamistapa</strong> choose <strong>I am giving the details on securities in an attachment file</strong> / <strong>Ilmoitan arvopaperien tiedot liitetiedostossa</strong> and fill out the following fields.
+    <h3>{{ t('result.section_title') }}</h3>
+    <p>{{ t('result.filing_help')|safe }}</p>
     <table class="styled-table">
       <thead>
         <tr>
-          <th>Field</th>
-          <th>Value</th>
+          <th>{{ t('result.field') }}</th>
+          <th>{{ t('result.value') }}</th>
         </tr>
       </thead>
       <tbody>
-        <tr><td>Total selling prices / Luovutushinnat yhteensä</td><td>{{ "%.2f"|format(proceeds|round(2)) }}</td></tr>
-        <tr><td>Total capital gains / Luovutusvoitot yhteensä</td><td>{{ "%.2f"|format(gains|round(2)) }}</td></tr>
-        <tr><td>Total capital losses / Luovutustappiot yhteensä</td><td>{{ "%.2f"|format(losses|round(2)) }}</td></tr>
+        <tr><td>{{ t('result.total_selling_prices') }}</td><td>{{ "%.2f"|format(proceeds|round(2)) }}</td></tr>
+        <tr><td>{{ t('result.total_capital_gains') }}</td><td>{{ "%.2f"|format(gains|round(2)) }}</td></tr>
+        <tr><td>{{ t('result.total_capital_losses') }}</td><td>{{ "%.2f"|format(losses|round(2)) }}</td></tr>
       </tbody>
     </table>
-    <h3>Details / Tiedot</h3>
+    <h3>{{ t('result.details') }}</h3>
     <table class="styled-table">
       <thead>
         <tr>
-          <th>Symbol / Arvopaperi</th>
-          <th>Quantity / Määrä</th>
-          <th title="Form 9A: Hankintapäivä">Acquisition date / Hankintapäivä</th>
-          <th title="Form 9A: Hankintahinta (total acquisition cost in report currency)">Acquisition cost / Hankintahinta</th>
+          <th>{{ t('result.name_of_security') }}</th>
+          <th>{{ t('result.quantity') }}</th>
+          <th title="{{ t('result.title_date_when_acquired') }}">{{ t('result.date_when_acquired') }}</th>
+          <th title="{{ t('result.title_acquisition_price') }}">{{ t('result.acquisition_price') }}</th>
 {%- if use_deemed_acquisition_cost %}
-          <th title="Deemed acquisition cost applied / Hankintameno-olettamaa käytetty">Deemed / Olettama</th>
+          <th title="{{ t('result.title_deemed') }}">{{ t('result.deemed_short') }}</th>
 {%- endif %}
-          <th title="Form 9A: Luovutuspäivä">Disposal date / Luovutuspäivä</th>
-          <th title="Form 9A: Luovutushinta (total selling price in report currency)">Disposal price / Luovutushinta</th>
-          <th title="Form 9A: Luovutusvoitto / luovutustappio">Gain or loss / Voitto tai tappio</th>
+          <th title="{{ t('result.title_selling_date') }}">{{ t('result.selling_date') }}</th>
+          <th title="{{ t('result.title_selling_price') }}">{{ t('result.selling_price') }}</th>
+          <th title="{{ t('result.title_gain_or_loss') }}">{{ t('result.capital_gain_or_loss') }}</th>
         </tr>
       </thead>
       <tbody>
