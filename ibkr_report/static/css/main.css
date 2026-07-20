@@ -4,6 +4,30 @@ body {
   background-color: #f0f0f0;
   text-align: center;
 }
+.lang-switcher {
+  font-family: system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  margin: 12px auto 0;
+  max-width: 90%;
+  text-align: right;
+}
+.lang-switcher a {
+  color: #c73036;
+  font-family: inherit;
+  text-decoration: none;
+}
+.lang-switcher a:hover {
+  text-decoration: underline;
+}
+.lang-switcher .lang-current {
+  color: #333333;
+  font-weight: 600;
+}
+.lang-switcher .lang-sep {
+  color: #999999;
+  margin: 0 0.35em;
+}
 h1 {
   color: #333333;
   font-family: 'Bitter', serif;

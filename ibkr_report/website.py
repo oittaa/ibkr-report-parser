@@ -3,21 +3,77 @@
 from decimal import Decimal
 from typing import Dict, List, Union
 
-from flask import Blueprint, Response, abort, make_response, render_template, request
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from werkzeug.datastructures import FileStorage
 
 from ibkr_report.definitions import TITLE, Disposal
+from ibkr_report.i18n import (
+    LANG_COOKIE,
+    LANG_COOKIE_MAX_AGE,
+    SUPPORTED_LANGS,
+    detect_lang_from_request,
+    make_translator,
+    normalize_lang,
+)
 from ibkr_report.report import Report
 from ibkr_report.tools import set_logging, _sri
 
 bp = Blueprint("website", __name__)
 
 
+def _template_lang_context() -> Dict[str, object]:
+    lang = detect_lang_from_request(request)
+    return {
+        "lang": lang,
+        "t": make_translator(lang),
+        "supported_langs": SUPPORTED_LANGS,
+    }
+
+
+def _set_lang_cookie(resp: Response, lang: str) -> None:
+    resp.set_cookie(
+        LANG_COOKIE,
+        lang,
+        max_age=LANG_COOKIE_MAX_AGE,
+        samesite="Lax",
+        path="/",
+    )
+
+
 @bp.route("/", methods=["GET"])
 def index() -> Response:
     """Main page"""
-    resp = make_response(render_template("index.html", title=TITLE, sri=_sri()))
+    query_lang = normalize_lang(request.args.get("lang"))
+    if query_lang:
+        # Persist preference and redirect to a clean URL.
+        resp = make_response(redirect(url_for("website.index")))
+        _set_lang_cookie(resp, query_lang)
+        return resp
+
+    lang = detect_lang_from_request(request)
+    resp = make_response(
+        render_template(
+            "index.html",
+            title=TITLE,
+            sri=_sri(),
+            **_template_lang_context(),
+        )
+    )
     resp.cache_control.max_age = 600
+    # Vary on language so shared caches don't mix FI/EN.
+    resp.headers["Vary"] = "Cookie, Accept-Language"
+    # Ensure first-time visitors with Accept-Language get a cookie for later POSTs.
+    if LANG_COOKIE not in request.cookies:
+        _set_lang_cookie(resp, lang)
     return resp
 
 
@@ -95,6 +151,7 @@ def show_results(
         file_count=outcome.file_count,
         use_deemed_acquisition_cost=use_deemed,
         sri=_sri(),
+        **_template_lang_context(),
     )
 
 
@@ -109,6 +166,7 @@ def bad_request(err):
             title=TITLE,
             message=str(err),
             sri=_sri(),
+            **_template_lang_context(),
         ),
         400,
     )

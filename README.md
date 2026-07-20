@@ -30,6 +30,8 @@ docker run --rm -d -p 8080:8080 --name ibkr-report-parser ghcr.io/oittaa/ibkr-re
 
 Browse to http://127.0.0.1:8080/
 
+The web UI is available in **English** and **Finnish**. The language is detected from the browser (`Accept-Language`) and defaults to English; you can switch with the **EN | FI** control (preference is stored in a cookie).
+
 ## Environment variables
 
 * `TITLE` The title of the website. Default `IBKR Report Parser`
@@ -84,17 +86,17 @@ Expired options and cash closes are still reported as option disposals.
 
 ## MyTax field names (form 9A)
 
-UI labels and the Python API follow [Verohallinto form 9A][form 9a] terminology (English / Finnish):
+UI labels and the Python API follow [Verohallinto form 9A][form 9a] terminology. The UI shows one language at a time (EN or FI); the table below lists the official wording used:
 
-| Report / API | Form 9A (EN sense) | Finnish |
-|--------------|--------------------|---------|
-| `acquired_on` | Acquisition date | Hankintapäivä |
-| `acquisition_cost` | Acquisition cost / price | Hankintahinta |
-| `disposed_on` | Disposal date | Luovutuspäivä |
-| `proceeds` | Disposal price | Luovutushinta |
-| `realized` | Gain or loss | Luovutusvoitto / -tappio |
-| `used_deemed_acquisition_cost` | Deemed acquisition cost used | Hankintameno-olettama |
-| Totals: `proceeds` / `gains` / `losses` | Total disposal prices / gains / losses | Luovutushinnat / -voitot / -tappiot yhteensä |
+| Report / API | Form 9A (English) | Finnish |
+|--------------|-------------------|---------|
+| `acquired_on` | Date when acquired | Hankintapäivä |
+| `acquisition_cost` | Acquisition price | Hankintahinta |
+| `disposed_on` | Selling date | Luovutuspäivä |
+| `proceeds` | Selling price | Luovutushinta |
+| `realized` | Capital gain / capital loss | Luovutusvoitto / luovutustappio |
+| `used_deemed_acquisition_cost` | Deemed acquisition cost | Hankintameno-olettama |
+| Totals: `proceeds` / `gains` / `losses` | Total selling prices / capital gains / capital losses | Luovutushinnat / -voitot / -tappiot yhteensä |
 
 ## Python API
 

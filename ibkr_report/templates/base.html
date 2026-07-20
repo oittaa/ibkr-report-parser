@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ lang }}">
 
 <head>
   <meta charset="utf-8">
@@ -9,6 +9,18 @@
 </head>
 
 <body>
+  <nav class="lang-switcher" aria-label="{{ t('lang.switcher_label') }}">
+{%- for code in supported_langs %}
+{%- if code == lang %}
+    <span class="lang-current" aria-current="true">{{ code|upper }}</span>
+{%- else %}
+    <a href="{{ url_for('website.index', lang=code) }}" hreflang="{{ code }}" lang="{{ code }}">{{ code|upper }}</a>
+{%- endif %}
+{%- if not loop.last %}
+    <span class="lang-sep" aria-hidden="true">|</span>
+{%- endif %}
+{%- endfor %}
+  </nav>
   <div id="content">{% block content %}{% endblock %}
   </div>
 </body>
